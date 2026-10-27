@@ -73,6 +73,9 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
+  other: {
+    "tiktok-developers-site-verification": "UpGIh7xHsSCHhiISy8g2B8zaksVvMbBD",
+  },
 };
 
 export default function RootLayout({
