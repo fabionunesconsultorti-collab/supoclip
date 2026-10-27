@@ -3,6 +3,7 @@ Worker tasks - background jobs processed by arq workers.
 """
 
 import logging
+import os
 from typing import Dict, Any, Optional
 import json
 from arq import Retry, cron
@@ -31,6 +32,10 @@ async def process_video_task(
     output_format: str = "vertical",
     add_subtitles: bool = True,
     cleanup_settings: Dict[str, Any] | None = None,
+    language: Optional[str] = None,
+    custom_context: Optional[str] = None,
+    *args,
+    **kwargs,
 ) -> Dict[str, Any]:
     """
     Background worker task to process a video.
@@ -97,6 +102,8 @@ async def process_video_task(
                 should_cancel=should_cancel,
                 clip_ready_callback=clip_ready_callback,
                 cleanup_settings=cleanup_settings,
+                language=language,
+                custom_context=custom_context,
             )
 
             logger.info(f"Task {task_id} completed successfully")
@@ -224,7 +231,7 @@ class WorkerSettings:
 
     # Retry settings
     max_tries = 3  # Retry failed jobs up to 3 times
-    job_timeout = 10800  # 3 hour timeout for video processing
+    job_timeout = int(os.getenv("WORKER_JOB_TIMEOUT", "28800"))  # 8 hour timeout for video and live processing
 
     # Worker pool settings
     max_jobs = 4  # Process up to 4 jobs simultaneously

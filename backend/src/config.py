@@ -21,18 +21,28 @@ class Config:
         self.ollama_base_url = self._get_runtime_setting("OLLAMA_BASE_URL")
         self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
 
-        self.whisper_model = os.getenv("WHISPER_MODEL") or os.getenv("WHISPER_MODEL_SIZE", "base")
+        self.whisper_model = (
+            self._get_runtime_setting("WHISPER_MODEL_SIZE")
+            or self._get_runtime_setting("WHISPER_MODEL")
+            or "base"
+        )
         self.transcription_provider = self._normalize_transcription_provider(
-            os.getenv("TRANSCRIPTION_PROVIDER", "assemblyai")
+            self._get_runtime_setting("TRANSCRIPTION_PROVIDER") or "assemblyai"
         )
         # Empty means auto-detect the spoken language; otherwise an AssemblyAI
         # language code such as "es" or "en_us" forces it.
         self.transcription_language = self._normalize_transcription_language(
-            os.getenv("TRANSCRIPTION_LANGUAGE")
+            self._get_runtime_setting("TRANSCRIPTION_LANGUAGE")
+            or os.getenv("TRANSCRIPTION_LANGUAGE")
         )
+        self.default_generation_context = (
+            self._get_runtime_setting("DEFAULT_GENERATION_CONTEXT")
+            or os.getenv("DEFAULT_GENERATION_CONTEXT")
+            or ""
+        ).strip()
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
         # Optional separate model for the cross-window candidate rerank pass.
-        self.rerank_llm = self._get_optional_env("RERANK_LLM") or self.llm
+        self.rerank_llm = self._get_runtime_setting("RERANK_LLM") or self.llm
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
         self.assembly_ai_http_timeout_seconds = int(
             os.getenv("ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS", "900")
@@ -59,22 +69,27 @@ class Config:
             os.getenv("APIFY_LONG_VIDEO_SECONDS", "1800")
         )
 
-        self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
+        self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "21600"))
         # YouTube sources can be longer on paid tiers. Uploads continue to use
         # max_video_duration regardless of plan.
         self.pro_youtube_max_video_duration = int(
             os.getenv("PRO_YOUTUBE_MAX_VIDEO_DURATION", str(self.max_video_duration))
         )
         self.scale_youtube_max_video_duration = int(
-            os.getenv("SCALE_YOUTUBE_MAX_VIDEO_DURATION", "10800")
+            os.getenv("SCALE_YOUTUBE_MAX_VIDEO_DURATION", "21600")
         )
         self.max_video_upload_bytes = int(
             os.getenv("MAX_VIDEO_UPLOAD_BYTES", "12000000000")
         )
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
-        self.max_clips = int(os.getenv("MAX_CLIPS", "10"))
-        self.clip_duration = int(os.getenv("CLIP_DURATION", "30"))  # seconds
+        self.max_clips = int(self._get_runtime_setting("MAX_CLIPS") or "10")
+        self.clip_duration = int(self._get_runtime_setting("CLIP_DURATION") or "60")  # seconds
+        self.min_clip_duration = int(self._get_runtime_setting("MIN_CLIP_DURATION") or "60")
+        self.max_clip_duration = int(self._get_runtime_setting("MAX_CLIP_DURATION") or "90")
+        self.ideal_clip_min_duration = int(self._get_runtime_setting("IDEAL_CLIP_MIN_DURATION") or "60")
+        self.ideal_clip_max_duration = int(self._get_runtime_setting("IDEAL_CLIP_MAX_DURATION") or "90")
+        self.analysis_total_timeout_seconds = int(self._get_runtime_setting("ANALYSIS_TOTAL_TIMEOUT_SECONDS") or "7200")
 
         self.temp_dir = os.getenv("TEMP_DIR", "temp")
         self.media_storage = os.getenv("MEDIA_STORAGE", "local").strip().lower()
@@ -237,6 +252,7 @@ class Config:
         return {
             "ASSEMBLY_AI_API_KEY": self.assembly_ai_api_key,
             "LLM": self.llm,
+            "RERANK_LLM": self.rerank_llm,
             "OPENAI_API_KEY": self.openai_api_key,
             "OPENROUTER_API_KEY": self.openrouter_api_key,
             "GOOGLE_API_KEY": self.google_api_key,
@@ -246,6 +262,17 @@ class Config:
             "YOUTUBE_DATA_API_KEY": self.youtube_data_api_key,
             "APIFY_API_TOKEN": self.apify_api_token,
             "PEXELS_API_KEY": self.pexels_api_key,
+            "TRANSCRIPTION_PROVIDER": self.transcription_provider,
+            "TRANSCRIPTION_LANGUAGE": self.transcription_language,
+            "WHISPER_MODEL_SIZE": self.whisper_model,
+            "MIN_CLIP_DURATION": str(self.min_clip_duration),
+            "MAX_CLIP_DURATION": str(self.max_clip_duration),
+            "IDEAL_CLIP_MIN_DURATION": str(self.ideal_clip_min_duration),
+            "IDEAL_CLIP_MAX_DURATION": str(self.ideal_clip_max_duration),
+            "CLIP_DURATION": str(self.clip_duration),
+            "MAX_CLIPS": str(self.max_clips),
+            "ANALYSIS_TOTAL_TIMEOUT_SECONDS": str(self.analysis_total_timeout_seconds),
+            "DEFAULT_GENERATION_CONTEXT": self.default_generation_context,
         }
 
     @staticmethod

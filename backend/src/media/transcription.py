@@ -277,6 +277,11 @@ def transcribe_with_youtube_captions(video_url: str) -> Optional[str]:
             "subtitlesformat": "vtt",
             "skip_download": True,
             "outtmpl": str(temp_dir / video_id),
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "ios", "web_embedded", "web"]
+                }
+            },
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([video_url])
@@ -317,6 +322,7 @@ def get_video_transcript(
     video_path: Path,
     speech_model: str = "universal",
     source_url: Optional[str] = None,
+    language: Optional[str] = None,
 ) -> str:
     """Get a video transcript using the configured provider.
 
@@ -324,12 +330,13 @@ def get_video_transcript(
     ``TRANSCRIPTION_PROVIDER``. ``source_url`` enables the youtube_captions
     provider, which needs the original URL rather than a local file path.
     """
-    logger.info(f"Getting transcript for: {video_path}")
+    logger.info(f"Getting transcript for: {video_path} (language={language})")
     runtime_config = get_config()
     provider = runtime_config.transcription_provider
+    selected_language = language or runtime_config.transcription_language
 
     if provider == "whisper":
-        return _get_transcript_with_whisper(video_path, runtime_config)
+        return _get_transcript_with_whisper(video_path, runtime_config, selected_language)
     if provider == "youtube_captions":
         if not source_url:
             raise ValueError(
@@ -337,11 +344,11 @@ def get_video_transcript(
                 "Pass source_url to get_video_transcript()."
             )
         return _get_transcript_with_youtube_captions(source_url)
-    return _get_transcript_with_assemblyai(video_path, speech_model, runtime_config)
+    return _get_transcript_with_assemblyai(video_path, speech_model, runtime_config, selected_language)
 
 
 def _get_transcript_with_assemblyai(
-    video_path: Path, speech_model: str, runtime_config
+    video_path: Path, speech_model: str, runtime_config, language: Optional[str] = None
 ) -> str:
     """Get transcript using AssemblyAI with word-level timing for precise subtitles."""
     aai.settings.api_key = runtime_config.assembly_ai_api_key
@@ -354,18 +361,18 @@ def _get_transcript_with_assemblyai(
 
     # Without a language, AssemblyAI assumes US English and garbles everything
     # else; detection also routes to the first listed model that supports it.
-    language = runtime_config.transcription_language
+    lang = language or runtime_config.transcription_language
     config_obj = aai.TranscriptionConfig(
         speaker_labels=True,
         punctuate=True,
         format_text=True,
         speech_models=speech_models_value,
-        language_code=language or None,
-        language_detection=None if language else True,
+        language_code=lang or None,
+        language_detection=None if lang else True,
     )
 
     try:
-        logger.info("Starting AssemblyAI transcription")
+        logger.info("Starting AssemblyAI transcription (language=%s)", lang)
         transcription_media_path = _prepare_audio_for_transcription(video_path)
         # Once submitted, a polling timeout must not submit another paid job or
         # restart the full transcription budget. Retry status GETs above instead.
@@ -386,7 +393,7 @@ def _get_transcript_with_assemblyai(
         response = getattr(transcript, "json_response", None) or {}
         logger.info(
             "AssemblyAI transcript language: %s (confidence: %s)",
-            response.get("language_code") or language or "unknown",
+            response.get("language_code") or lang or "unknown",
             response.get("language_confidence"),
         )
 
@@ -404,12 +411,15 @@ def _get_transcript_with_assemblyai(
         raise
 
 
-def _get_transcript_with_whisper(video_path: Path, runtime_config) -> str:
+def _get_transcript_with_whisper(
+    video_path: Path, runtime_config, language: Optional[str] = None
+) -> str:
     """Get transcript using local Whisper with word-level timestamps."""
     model_name = runtime_config.whisper_model
-    logger.info("Starting Whisper transcription with model: %s", model_name)
+    lang = language or runtime_config.transcription_language
+    logger.info("Starting Whisper transcription with model: %s (language=%s)", model_name, lang)
     whisper_result = transcribe_with_whisper(
-        video_path, model_name, runtime_config.transcription_language or None
+        video_path, model_name, lang or None
     )
 
     formatted_lines = format_transcript_for_analysis(whisper_result)

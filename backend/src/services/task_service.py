@@ -28,7 +28,9 @@ from .task_completion_email_service import (
     TaskCompletionRecipient,
 )
 from ..config import Config, get_config
-from ..youtube_utils import cleanup_downloaded_files, extract_video_id
+import os
+import shutil
+from ..youtube_utils import cleanup_downloaded_files, extract_video_id, async_get_youtube_video_info
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import load_clip_caption_settings
@@ -260,6 +262,8 @@ class TaskService(ClipEditingMixin):
         should_cancel: Optional[Callable] = None,
         clip_ready_callback: Optional[Callable] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        language: Optional[str] = None,
+        custom_context: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -279,6 +283,12 @@ class TaskService(ClipEditingMixin):
         try:
             await check_cancelled()
             logger.info(f"Starting processing for task {task_id}")
+            source_meta = await self.task_repo.load_source_metadata(self.db, task_id)
+            if not language:
+                language = source_meta.get("language")
+            if not custom_context:
+                custom_context = source_meta.get("custom_context") or getattr(self.config, "default_generation_context", None)
+
             started_at = datetime.utcnow()
             stage_timings: Dict[str, float] = {}
             cache_key = self._build_cache_key(url, source_type, processing_mode)
@@ -294,7 +304,7 @@ class TaskService(ClipEditingMixin):
             # clip selection. Personalized analyses bypass the shared analysis
             # cache so one creator's history never shapes another's clips.
             performance_context = await self._load_performance_context(user_id)
-            if performance_context:
+            if performance_context or custom_context:
                 cached_analysis_json = None
             cache_hit = bool(cached_transcript and cached_analysis_json)
 
@@ -338,6 +348,27 @@ class TaskService(ClipEditingMixin):
                     billing.get("plan"), billing.get("subscription_status")
                 )
 
+            if source_type == "youtube":
+                video_info = await async_get_youtube_video_info(url, task_id=task_id)
+                if video_info and (video_info.get("is_live") or video_info.get("live_status") == "is_live"):
+                    logger.info("Active live stream detected for task %s. Starting progressive chunk pipeline.", task_id)
+                    return await self.process_live_stream(
+                        task_id=task_id,
+                        url=url,
+                        user_id=user_id,
+                        font_family=font_family,
+                        font_size=font_size,
+                        font_color=font_color,
+                        caption_template=caption_template,
+                        processing_mode=processing_mode,
+                        output_format=output_format,
+                        add_subtitles=add_subtitles,
+                        update_progress=update_progress,
+                        should_cancel=should_cancel,
+                        clip_ready_callback=clip_ready_callback,
+                        cleanup_settings=cleanup_settings,
+                    )
+
             pipeline_start = perf_counter()
             result = await self.video_service.process_video_complete(
                 url=url,
@@ -356,6 +387,8 @@ class TaskService(ClipEditingMixin):
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
                 performance_context=performance_context,
+                language=language,
+                custom_context=custom_context,
             )
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3
@@ -389,7 +422,7 @@ class TaskService(ClipEditingMixin):
                 source_type=source_type,
                 video_path=MediaStorage().source_reference(url) if url.startswith("upload://s3/") else result.get("video_path"),
                 transcript_text=result.get("transcript"),
-                analysis_json=None if performance_context else result.get("analysis_json"),
+                analysis_json=None if (performance_context or custom_context) else result.get("analysis_json"),
             )
 
             video_path = Path(result["video_path"])
@@ -732,3 +765,157 @@ class TaskService(ClipEditingMixin):
     async def get_performance_metrics(self) -> Dict[str, Any]:
         """Return aggregate processing performance metrics."""
         return await self.task_repo.get_performance_metrics(self.db)
+
+    async def process_live_stream(
+        self,
+        task_id: str,
+        url: str,
+        user_id: Optional[str] = None,
+        font_family: Optional[str] = None,
+        font_size: Optional[int] = None,
+        font_color: Optional[str] = None,
+        caption_template: str = "default",
+        processing_mode: str = "fast",
+        output_format: str = "vertical",
+        add_subtitles: bool = True,
+        update_progress: Optional[Callable] = None,
+        should_cancel: Optional[Callable] = None,
+        clip_ready_callback: Optional[Callable] = None,
+        cleanup_settings: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Process active YouTube live stream continuously in progressive chunks.
+        Slices chunks, transcribes, analyzes with Gemini, renders clips,
+        and dispatches them in real-time until stream ends or task is cancelled.
+        """
+        from .live_stream_service import LiveStreamService
+
+        logger.info("Starting live stream processing for task %s", task_id)
+        chunk_seconds = int(os.getenv("LIVE_CHUNK_SECONDS", "600"))
+        live_temp_dir = Path(self.config.temp_dir) / f"live_{task_id}"
+        live_temp_dir.mkdir(parents=True, exist_ok=True)
+        clips_output_dir = Path(self.config.temp_dir) / "clips"
+        clips_output_dir.mkdir(parents=True, exist_ok=True)
+
+        if update_progress:
+            await update_progress(5, "Conectando à transmissão ao vivo...", "processing")
+
+        stream_url = await run_in_thread(LiveStreamService.extract_live_stream_url, url)
+        if not stream_url:
+            raise Exception("Não foi possível conectar ao stream da transmissão ao vivo.")
+
+        chunk_index = 0
+        total_clips_created = 0
+        all_clip_ids = []
+        normalized_cleanup_settings = normalize_clip_cleanup_settings(**(cleanup_settings or {}))
+
+        while True:
+            if should_cancel and await should_cancel():
+                logger.info("Live stream monitoring stopped by user for task %s", task_id)
+                break
+
+            chunk_index += 1
+            chunk_file = live_temp_dir / f"chunk_{chunk_index:03d}.mp4"
+            if update_progress:
+                await update_progress(
+                    min(90, 10 + (chunk_index * 5)),
+                    f"Gravando fatia {chunk_index} da Live ao vivo ({chunk_seconds // 60}m)...",
+                    "processing",
+                )
+
+            recorded = await LiveStreamService.record_stream_chunk(
+                stream_url=stream_url,
+                output_file=chunk_file,
+                duration_seconds=chunk_seconds,
+                should_cancel=should_cancel,
+            )
+
+            if not recorded:
+                logger.info("Live stream concluded or stream stopped transmitting data.")
+                break
+
+            if update_progress:
+                await update_progress(
+                    min(95, 12 + (chunk_index * 5)),
+                    f"Analisando e gerando cortes da fatia {chunk_index}...",
+                    "processing",
+                )
+
+            try:
+                transcript = await self.video_service.generate_transcript(
+                    chunk_file,
+                    processing_mode=processing_mode,
+                )
+                if transcript and transcript.strip():
+                    analysis = await self.video_service.analyze_transcript(transcript)
+                    segments = getattr(analysis, "most_relevant_segments", []) or []
+
+                    for seg in segments:
+                        if should_cancel and await should_cancel():
+                            break
+                        clip_info = await self.video_service.create_single_clip(
+                            chunk_file,
+                            seg,
+                            total_clips_created,
+                            clips_output_dir,
+                            font_family,
+                            font_size,
+                            font_color,
+                            caption_template,
+                            output_format,
+                            add_subtitles,
+                            normalized_cleanup_settings,
+                        )
+                        if clip_info:
+                            async with self._processing_transaction(task_id):
+                                clip_id = await self.clip_repo.create_clip(
+                                    self.db,
+                                    task_id=task_id,
+                                    filename=clip_info["filename"],
+                                    file_path=clip_info["path"],
+                                    start_time=clip_info["start_time"],
+                                    end_time=clip_info["end_time"],
+                                    duration=clip_info["duration"],
+                                    text=clip_info.get("text", ""),
+                                    relevance_score=clip_info.get("relevance_score", 0.0),
+                                    reasoning=clip_info.get("reasoning", ""),
+                                    clip_order=total_clips_created + 1,
+                                    virality_score=clip_info.get("virality_score", 0),
+                                    hook_score=clip_info.get("hook_score", 0),
+                                    engagement_score=clip_info.get("engagement_score", 0),
+                                    value_score=clip_info.get("value_score", 0),
+                                    shareability_score=clip_info.get("shareability_score", 0),
+                                    hook_type=clip_info.get("hook_type"),
+                                    hook_title=clip_info.get("hook_title"),
+                                )
+                                all_clip_ids.append(clip_id)
+                                await self.task_repo.update_task_clips(self.db, task_id, all_clip_ids)
+
+                            total_clips_created += 1
+                            if clip_ready_callback:
+                                clip_record = await self.clip_repo.get_clip_by_id(self.db, clip_id)
+                                if clip_record:
+                                    await clip_ready_callback(total_clips_created - 1, total_clips_created, clip_record)
+            except Exception as exc:
+                logger.warning("Error processing live chunk %s: %s", chunk_index, exc)
+
+            try:
+                if chunk_file.exists():
+                    chunk_file.unlink()
+            except Exception:
+                pass
+
+        try:
+            shutil.rmtree(live_temp_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+        if update_progress:
+            await update_progress(100, f"Live finalizada! {total_clips_created} cortes gerados.", "completed")
+
+        return {
+            "status": "completed",
+            "task_id": task_id,
+            "clips_count": total_clips_created,
+            "clip_ids": all_clip_ids,
+        }

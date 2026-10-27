@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Crop, FileVideo,
-  Loader2, Paintbrush, Paperclip, Upload, Wand2, X, Youtube,
+  Globe, Loader2, Paintbrush, Paperclip, Sparkles, Upload, Wand2, X, Youtube,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 import { FONT_SEARCH_THRESHOLD, getYouTubeThumbnailUrl, uploadVideoFile } from "@/lib/video-upload";
@@ -13,6 +13,7 @@ import { GenerationCard } from "@/components/app/generation-card";
 import { VideoDownloadStatus } from "@/components/app/video-download-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
 import { UpgradeDialog, UpgradeNudge, getUpgradeState, upgradeReasonForError, type UpgradeReason } from "@/components/billing/upgrade-prompt";
@@ -53,6 +54,24 @@ const FRAMINGS: { id: OutputFormat; label: string; hint: string }[] = [
 
 const COLOR_SWATCHES = ["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"];
 
+const LANGUAGE_OPTIONS = [
+  { value: "", label: "Detectar Automaticamente", shortLabel: "Auto" },
+  { value: "pt", label: "Português", shortLabel: "PT" },
+  { value: "en", label: "English", shortLabel: "EN" },
+  { value: "es", label: "Español", shortLabel: "ES" },
+  { value: "fr", label: "Français", shortLabel: "FR" },
+  { value: "de", label: "Deutsch", shortLabel: "DE" },
+  { value: "it", label: "Italiano", shortLabel: "IT" },
+];
+
+const CONTEXT_PRESETS = [
+  { label: "🔥 Viral & Retenção", text: "Destaque momentos de alto impacto emocional, revelações e ganchos virais com grande retenção." },
+  { label: "💡 Dicas & Aprendizado", text: "Foque em explicações diretas, ensinamentos passo a passo e conselhos práticos e acionáveis." },
+  { label: "😂 Humor & Reações", text: "Priorize momentos cômicos, piadas, risadas e interações descontraídas." },
+  { label: "📈 Negócios & Métricas", text: "Encontre análises sobre métricas, crescimento, negócios e tomadas de decisão." },
+  { label: "🎯 Perguntas & Respostas", text: "Destaque perguntas intrigantes com respostas diretas e marcantes." },
+];
+
 function formatBytes(bytes: number) {
   if (bytes > 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
   return `${Math.max(1, Math.round(bytes / 1e6))} MB`;
@@ -88,6 +107,8 @@ export default function HomeApp() {
   const [pauseThresholdMs, setPauseThresholdMs] = useState("700");
   const [removeFillerWords, setRemoveFillerWords] = useState(true);
   const [filteredWords, setFilteredWords] = useState("");
+  const [transcriptionLanguage, setTranscriptionLanguage] = useState<string>("");
+  const [customContext, setCustomContext] = useState<string>("");
 
   const [recent, setRecent] = useState<GenerationSummary[] | null>(null);
   const [billingSummary, updateBillingSummary] = useBillingSummary(Boolean(session?.user?.id));
@@ -247,6 +268,8 @@ export default function HomeApp() {
           pause_threshold_ms: normalizedPauseThreshold,
           remove_filler_words: removeFillerWords,
           filtered_words: normalizedFilteredWords,
+          language: transcriptionLanguage || undefined,
+          custom_context: customContext.trim() || undefined,
         }),
       });
 
@@ -565,6 +588,93 @@ export default function HomeApp() {
                   <div className="space-y-1.5">
                     <label htmlFor="filtered-words" className="text-xs font-medium text-muted-foreground">Extra words or phrases to cut</label>
                     <Input id="filtered-words" value={filteredWords} onChange={(e) => setFilteredWords(e.target.value)} placeholder="basically, literally, to be honest" className="h-8" />
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Chip disabled={controlsDisabled} active={Boolean(transcriptionLanguage)}>
+                    <Globe className="size-3.5" />
+                    {LANGUAGE_OPTIONS.find((l) => l.value === transcriptionLanguage)?.shortLabel || "Idioma"}
+                    <ChevronDown className="size-3 opacity-60" />
+                  </Chip>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[min(92vw,260px)] rounded-2xl p-2 space-y-1">
+                  <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Idioma da Legenda & Áudio</p>
+                  <div className="space-y-0.5">
+                    {LANGUAGE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setTranscriptionLanguage(opt.value)}
+                        className={cn(
+                          "w-full flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs text-left transition-colors hover:bg-accent",
+                          transcriptionLanguage === opt.value && "bg-accent font-semibold text-foreground"
+                        )}
+                      >
+                        <span>{opt.label}</span>
+                        {transcriptionLanguage === opt.value && <Check className="size-3.5 text-brand" />}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Chip disabled={controlsDisabled} active={Boolean(customContext.trim())}>
+                    <Sparkles className={cn("size-3.5", customContext.trim() && "text-brand")} />
+                    {customContext.trim() ? "Foco IA (Ativo)" : "Foco do Corte"}
+                    {customContext.trim() && <span className="size-1.5 rounded-full bg-brand" />}
+                    <ChevronDown className="size-3 opacity-60" />
+                  </Chip>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[min(92vw,360px)] space-y-3 rounded-2xl p-4">
+                  <div>
+                    <p className="text-sm font-semibold flex items-center gap-1.5">
+                      <Sparkles className="size-4 text-brand" /> Foco do Corte com IA
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Oriente a IA para priorizar momentos específicos neste vídeo.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Textarea
+                      value={customContext}
+                      onChange={(e) => setCustomContext(e.target.value)}
+                      placeholder="Ex: Encontre o momento onde o convidado explica sua estratégia de negócios..."
+                      className="min-h-[85px] text-xs resize-none"
+                      maxLength={500}
+                    />
+                    {customContext.trim() && (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setCustomContext("")}
+                          className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          Limpar foco
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 pt-1">
+                    <p className="text-[11px] font-medium text-muted-foreground">Sugestões rápidas:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {CONTEXT_PRESETS.map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => setCustomContext(preset.text)}
+                          className="text-[11px] rounded-full border border-border bg-muted/40 hover:bg-muted px-2.5 py-1 text-foreground/80 hover:text-foreground transition-colors"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </PopoverContent>
               </Popover>

@@ -38,7 +38,7 @@ function clipTitle(clip: WallClip) {
   return clip.hook_title || `Clip ${clip.clip_order}`;
 }
 
-export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownload, onDelete }: {
+export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownload, onThumbnail, onDelete }: {
   clip: WallClip;
   taskId: string;
   busy: boolean;
@@ -46,6 +46,7 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
   editable: boolean;
   onOpen: () => void;
   onDownload: () => void;
+  onThumbnail?: () => void;
   onDelete?: () => void;
 }) {
   return (
@@ -58,6 +59,7 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
       >
         <ClipCover
           src={getClipUrl(clip.video_url, clip.filename)}
+          poster={`/api/tasks/${taskId}/clips/${clip.id}/thumbnail`}
           className="aspect-[9/16] rounded-xl ring-1 ring-black/5 transition-shadow duration-200 group-hover:shadow-xl"
         >
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/25" />
@@ -84,6 +86,11 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
           <Button size="sm" variant="outline" className="h-7 flex-1 px-2 text-xs" onClick={onDownload} disabled={busy} aria-label={`Download ${clipTitle(clip)}`}>
             {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}<span className="hidden @min-[190px]:inline">Download</span>
           </Button>
+          {onThumbnail && (
+            <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-500" onClick={onThumbnail} title="Criar ou editar thumbnail">
+              <Sparkles className="size-3.5" /><span className="hidden @min-[210px]:inline">Capa</span>
+            </Button>
+          )}
           {editable && (
             <Button size="sm" variant="outline" className="h-7 px-2 text-xs" asChild>
               <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-3.5" />Edit</Link>
@@ -107,7 +114,7 @@ const BREAKDOWN = [
   { key: "shareability_score", label: "Shareability", icon: Share2 },
 ] as const;
 
-export function ClipFocus({ clip, taskId, index, total, busy, editable, onNavigate, onClose, onDownload, onDelete, hookTypeLabel, actions, children }: {
+export function ClipFocus({ clip, taskId, index, total, busy, editable, onNavigate, onClose, onDownload, onDelete, onThumbnail, hookTypeLabel, actions, children }: {
   clip: WallClip | null;
   taskId: string;
   index: number;
@@ -118,6 +125,7 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
   onClose: () => void;
   onDownload: () => void;
   onDelete?: () => void;
+  onThumbnail?: () => void;
   hookTypeLabel: (hookType: string | null) => string;
   /** Extra footer actions for the focused clip (e.g. publishing). */
   actions?: React.ReactNode;
@@ -194,6 +202,11 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                 <Button size="sm" onClick={onDownload} disabled={busy}>
                   {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}Download
                 </Button>
+                {onThumbnail && (
+                  <Button size="sm" variant="outline" onClick={onThumbnail} className="gap-1.5 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10">
+                    <Sparkles className="size-4" />Studio de Thumbnail
+                  </Button>
+                )}
                 {editable && (
                   <Button size="sm" variant="outline" asChild>
                     <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-4" />Open in editor</Link>

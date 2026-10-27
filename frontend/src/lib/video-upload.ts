@@ -46,9 +46,11 @@ const extractYouTubeVideoId = (value: string): string | null => {
       }
 
       const pathParts = parsed.pathname.split("/").filter(Boolean);
-      const embedId = pathParts[0] === "embed" ? pathParts[1] : null;
-      if (embedId && embedId.length === 11) {
-        return embedId;
+      if (pathParts[0] === "embed" || pathParts[0] === "live" || pathParts[0] === "shorts") {
+        const id = pathParts[1];
+        if (id && id.length === 11) {
+          return id;
+        }
       }
     }
   } catch {

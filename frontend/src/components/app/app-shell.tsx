@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowRight, Bot, ChartColumn, CornerDownLeft, Film, LogOut, Plus, Search, Settings, Share2, Shield, Sparkles,
+  ArrowRight, Bot, ChartColumn, CornerDownLeft, Film, LogOut, Plus, Search, Settings, Share2, Shield, Sliders, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { signOut, useSession } from "@/lib/auth-client";
@@ -20,19 +20,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
-
-// `mobile: false` keeps an item out of the five-slot mobile tab bar.
-// `social: true` items only show when social publishing is enabled for the user.
-type NavItem = { href: string; label: string; icon: typeof Film; match: (path: string) => boolean; mobile?: boolean; social?: boolean };
-
-const NAV: NavItem[] = [
-  { href: "/", label: "Create", icon: Sparkles, match: (p) => p === "/" },
-  { href: "/list", label: "Library", icon: Film, match: (p) => p.startsWith("/list") || p.startsWith("/tasks") },
-  { href: "/settings/social", label: "Social", icon: Share2, match: (p) => p.startsWith("/settings/social"), social: true },
-  { href: "/analytics", label: "Analytics", icon: ChartColumn, match: (p) => p.startsWith("/analytics"), social: true },
-  { href: "/settings/api-keys", label: "Agents & API", icon: Bot, match: (p) => p.startsWith("/settings/api-keys"), mobile: false },
-  { href: "/settings", label: "Settings", icon: Settings, match: (p) => p === "/settings" },
-];
+import { getAppNavigation } from "@/lib/features/registry";
 
 function initials(name?: string | null, email?: string | null) {
   const source = name?.trim() || email || "?";
@@ -72,9 +60,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const user = session?.user;
   const admin = Boolean((user as { is_admin?: boolean } | undefined)?.is_admin);
   const socialAccess = useSocialAccess(Boolean(user));
-  const nav = NAV.filter((item) => !item.social || socialAccess);
-  const mobileNav = nav.filter((item) => item.mobile !== false);
-  const items = admin ? [...nav, { href: "/admin", label: "Admin", icon: Shield, match: (p: string) => p.startsWith("/admin") }] : nav;
+  const items = getAppNavigation({ isAdmin: admin, hasSocialAccess: Boolean(socialAccess) });
+  const mobileNav = getAppNavigation({ isAdmin: admin, hasSocialAccess: Boolean(socialAccess), mobileOnly: true });
 
   return (
     <div data-app-shell={user ? "" : undefined} className={cn(user && "flex min-h-dvh bg-canvas")}>
@@ -97,7 +84,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {items.map((item) => {
             const active = item.match(pathname);
             return (
-              <SidebarLink key={item.href} compact={compact} href={item.href} label={item.label} active={active}>
+              <SidebarLink key={item.href} compact={compact} href={item.href} label={item.label} active={active} badge={item.badge}>
                 <item.icon className="size-4" />
               </SidebarLink>
             );
@@ -156,8 +143,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SidebarLink({ href, label, active, compact, shortcut, className, children }: {
-  href: string; label: string; active?: boolean; compact: boolean; shortcut?: string; className?: string; children: React.ReactNode;
+function SidebarLink({ href, label, active, compact, shortcut, badge, className, children }: {
+  href: string; label: string; active?: boolean; compact: boolean; shortcut?: string; badge?: string; className?: string; children: React.ReactNode;
 }) {
   const link = (
     <Link
@@ -173,6 +160,11 @@ function SidebarLink({ href, label, active, compact, shortcut, className, childr
     >
       {children}
       {!compact && <span className="flex-1">{label}</span>}
+      {!compact && badge && (
+        <span className="rounded-full bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold text-brand">
+          {badge}
+        </span>
+      )}
       {!compact && shortcut && <span className="text-[11px] opacity-60">{shortcut}</span>}
     </Link>
   );
@@ -265,6 +257,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
     const actions: PaletteEntry[] = [
       { id: "new", label: "New generation", hint: "Paste a link or upload", href: "/", icon: Plus },
       { id: "library", label: "Open library", href: "/list", icon: Film },
+      { id: "generation", label: "Generation settings", hint: "AI models, Whisper & clip durations", href: "/settings/generation", icon: Sliders },
       ...(socialAccess ? [{ id: "social", label: "Social accounts", hint: "Connect YouTube, TikTok & Instagram", href: "/settings/social", icon: Share2 },
       { id: "analytics", label: "Analytics", hint: "How your published clips perform", href: "/analytics", icon: ChartColumn }] : []),
       { id: "keys", label: "Agents & API", hint: "API keys & MCP", href: "/settings/api-keys", icon: Bot },

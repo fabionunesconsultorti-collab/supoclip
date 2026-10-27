@@ -5,10 +5,12 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth_headers import get_authenticated_user_id
-from .config import Config
+from .config import Config, get_config
 
 
 async def user_is_admin(db: AsyncSession, user_id: str) -> bool:
+    if get_config().self_host:
+        return True
     result = await db.execute(
         text("SELECT is_admin FROM users WHERE id = :user_id"),
         {"user_id": user_id},
@@ -29,6 +31,7 @@ async def require_admin_user(
     row = result.fetchone()
     if not row:
         raise HTTPException(status_code=401, detail="User not found")
-    if not bool(getattr(row, "is_admin", False)):
+    if not bool(getattr(row, "is_admin", False)) and not config.self_host:
         raise HTTPException(status_code=403, detail="Admin access required")
     return str(user_id)
+

@@ -41,6 +41,9 @@ from ...clip_cleanup import (
 )
 from ...video_utils import VALID_OUTPUT_FORMATS
 from ...admin_auth import require_admin_user, user_is_admin
+import base64
+import subprocess
+from ...ai import generate_thumbnail_titles
 import redis.asyncio as redis
 from ...clip_editor import export_with_preset, EXPORT_PRESETS
 
@@ -51,8 +54,16 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, Any]:
     """Check duration before creating a task or consuming a generation."""
     try:
-        metadata = await asyncio.wait_for(async_get_youtube_video_info(url), timeout=15)
-        duration = (metadata or {}).get("duration")
+        metadata = await asyncio.wait_for(async_get_youtube_video_info(url), timeout=20)
+        if not metadata:
+            raise ValueError("No metadata returned")
+
+        is_live = bool(metadata.get("is_live") or metadata.get("live_status") == "is_live")
+        if is_live:
+            # Transmissões ao vivo ativas não possuem duração finita pré-fixada
+            return metadata
+
+        duration = metadata.get("duration")
         if isinstance(duration, bool) or not isinstance(duration, (int, float)):
             raise ValueError("Missing video duration")
         if not math.isfinite(duration) or duration <= 0:
@@ -197,6 +208,8 @@ def _merge_task_source_metadata(
     output_format: Any = None,
     add_subtitles: Any = None,
     cleanup_settings: Dict[str, Any] | None = None,
+    language: Any = None,
+    custom_context: Any = None,
 ) -> Dict[str, Any]:
     merged = dict(existing or {})
 
@@ -210,6 +223,10 @@ def _merge_task_source_metadata(
         merged["add_subtitles"] = add_subtitles
     if cleanup_settings:
         merged.update(cleanup_settings)
+    if isinstance(language, str) and language.strip():
+        merged["language"] = language.strip()
+    if isinstance(custom_context, str) and custom_context.strip():
+        merged["custom_context"] = custom_context.strip()
 
     return merged
 
@@ -353,6 +370,8 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     add_subtitles = data.get("add_subtitles", True)
     if not isinstance(add_subtitles, bool):
         add_subtitles = True
+    language = data.get("language") or data.get("transcription_language") or None
+    custom_context = data.get("custom_context") or data.get("context") or None
     cleanup_settings = new_task_cleanup_settings(data)
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
@@ -400,6 +419,8 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                         output_format=output_format,
                         add_subtitles=add_subtitles,
                         cleanup_settings=cleanup_settings,
+                        language=language,
+                        custom_context=custom_context,
                     ),
                     db=db,
                 )
@@ -421,6 +442,8 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                     output_format,
                     add_subtitles,
                     cleanup_settings,
+                    language=language,
+                    custom_context=custom_context,
                     _job_id=processing_job_id,
                 )
 
@@ -812,6 +835,140 @@ async def get_clip_file(
     except Exception as e:
         logger.error(f"Error serving clip file: {e}")
         raise HTTPException(status_code=500, detail=f"Error serving clip file: {str(e)}")
+
+
+@router.get("/{task_id}/clips/{clip_id}/thumbnail")
+async def get_clip_thumbnail(
+    task_id: str,
+    clip_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db, scope="function"),
+):
+    """Serve a clip thumbnail image, generating on-the-fly if needed."""
+    try:
+        task_service = TaskService(db)
+        await _require_task_reader(request, task_service, db, task_id)
+        clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+        if not clip or clip.get("task_id") != task_id:
+            raise HTTPException(status_code=404, detail="Clip not found")
+
+        clip_path = Path(clip["file_path"])
+        thumb_path = clip_path.with_suffix(".jpg")
+
+        if not thumb_path.exists():
+            if not clip_path.exists():
+                raise HTTPException(status_code=404, detail="Clip video file not found")
+            try:
+                subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-v", "error",
+                        "-y",
+                        "-ss", "00:00:01",
+                        "-i", str(clip_path),
+                        "-vframes", "1",
+                        "-q:v", "2",
+                        str(thumb_path),
+                    ],
+                    check=True,
+                    timeout=15,
+                )
+            except Exception as exc:
+                logger.warning("Failed to generate clip thumbnail on-the-fly: %s", exc)
+                raise HTTPException(status_code=404, detail="Thumbnail not available")
+
+        await db.close()
+        return FileResponse(
+            path=str(thumb_path),
+            media_type="image/jpeg",
+            filename=f"{clip_path.stem}_thumb.jpg",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving clip thumbnail: {e}")
+        raise HTTPException(status_code=500, detail=f"Error serving thumbnail: {str(e)}")
+
+
+@router.post("/{task_id}/clips/{clip_id}/thumbnail")
+async def save_clip_thumbnail(
+    task_id: str,
+    clip_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Save an edited thumbnail image (base64 dataURL or binary) for a clip."""
+    try:
+        task_service = TaskService(db)
+        await _require_task_owner(request, task_service, db, task_id)
+        clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+        if not clip or clip.get("task_id") != task_id:
+            raise HTTPException(status_code=404, detail="Clip not found")
+
+        clip_path = Path(clip["file_path"])
+        thumb_path = clip_path.with_suffix(".jpg")
+
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            payload = await _read_json_object(request)
+            image_data = payload.get("image_data") or payload.get("image")
+            if not image_data or not isinstance(image_data, str):
+                raise HTTPException(status_code=400, detail="image_data is required")
+            if "," in image_data:
+                image_data = image_data.split(",", 1)[1]
+            try:
+                raw_bytes = base64.b64decode(image_data)
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid base64 image data")
+        else:
+            raw_bytes = await request.body()
+            if not raw_bytes:
+                raise HTTPException(status_code=400, detail="Image body is required")
+
+        thumb_path.parent.mkdir(parents=True, exist_ok=True)
+        thumb_path.write_bytes(raw_bytes)
+        logger.info(f"Updated thumbnail for clip {clip_id} ({len(raw_bytes)} bytes)")
+        return {"success": True, "message": "Thumbnail updated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error saving clip thumbnail: {e}")
+        raise HTTPException(status_code=500, detail=f"Error saving thumbnail: {str(e)}")
+
+
+@router.post("/{task_id}/clips/{clip_id}/suggest-titles")
+async def suggest_clip_titles(
+    task_id: str,
+    clip_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate viral thumbnail title ideas using the connected AI model."""
+    try:
+        task_service = TaskService(db)
+        await _require_task_reader(request, task_service, db, task_id)
+        clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+        if not clip or clip.get("task_id") != task_id:
+            raise HTTPException(status_code=404, detail="Clip not found")
+
+        metadata = await _load_task_source_metadata(task_id, db=db)
+        language = metadata.get("language")
+
+        transcript_text = clip.get("text") or ""
+        current_title = clip.get("hook_title") or clip.get("title")
+
+        suggestions = await generate_thumbnail_titles(
+            transcript_segment=transcript_text,
+            current_title=current_title,
+            language=language,
+        )
+        return {"suggestions": suggestions}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating title suggestions: {e}")
+        raise HTTPException(status_code=500, detail=f"Error suggesting titles: {str(e)}")
 
 
 @router.patch("/{task_id}/clips/{clip_id}")

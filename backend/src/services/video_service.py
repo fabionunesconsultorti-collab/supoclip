@@ -176,13 +176,14 @@ class VideoService:
         video_path: Path,
         processing_mode: str = "balanced",
         source_url: Optional[str] = None,
+        language: Optional[str] = None,
     ) -> str:
         """
         Generate transcript from video using the configured provider
         (assemblyai, whisper, or youtube_captions).
         Runs in thread pool to avoid blocking.
         """
-        logger.info(f"Generating transcript for: {video_path}")
+        logger.info(f"Generating transcript for: {video_path} (language={language})")
         speech_model = "best"
         runtime_config = get_config()
         # The fast-mode model selector is only meaningful for AssemblyAI; the
@@ -191,7 +192,7 @@ class VideoService:
             speech_model = runtime_config.fast_mode_transcript_model
 
         transcript = await run_in_thread(
-            get_video_transcript, video_path, speech_model, source_url
+            get_video_transcript, video_path, speech_model, source_url, language
         )
         logger.info(f"Transcript generated: {len(transcript)} characters")
         return transcript
@@ -201,6 +202,8 @@ class VideoService:
         transcript: str,
         clip_signals: Optional[str] = None,
         performance_context: Optional[str] = None,
+        custom_context: Optional[str] = None,
+        language: Optional[str] = None,
     ) -> Any:
         """
         Analyze transcript with AI to find relevant segments.
@@ -211,6 +214,8 @@ class VideoService:
             transcript,
             clip_signals=clip_signals,
             performance_context=performance_context,
+            custom_context=custom_context,
+            language=language,
         )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
@@ -347,6 +352,26 @@ class VideoService:
             logger.info(
                 f"Created clip {clip_index + 1}: {cleaned_duration:.1f}s"
             )
+
+            # Extract initial high-quality thumbnail frame
+            thumb_path = clip_path.with_suffix(".jpg")
+            try:
+                subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-v", "error",
+                        "-y",
+                        "-ss", "00:00:01",
+                        "-i", str(clip_path),
+                        "-vframes", "1",
+                        "-q:v", "2",
+                        str(thumb_path),
+                    ],
+                    check=False,
+                    timeout=15,
+                )
+            except Exception as thumb_err:
+                logger.warning("Could not extract initial clip thumbnail: %s", thumb_err)
             return {
                 "clip_id": clip_index + 1,
                 "filename": clip_filename,
@@ -415,6 +440,8 @@ class VideoService:
         progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
         should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
         performance_context: Optional[str] = None,
+        language: Optional[str] = None,
+        custom_context: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
@@ -490,6 +517,7 @@ class VideoService:
                     video_path,
                     processing_mode=processing_mode,
                     source_url=url if source_type == "youtube" else None,
+                    language=language,
                 )
 
             # Preserve paid word timings before any analysis/cancellation path.
@@ -508,7 +536,7 @@ class VideoService:
                 )
 
             relevant_parts = None
-            if cached_analysis_json:
+            if cached_analysis_json and not custom_context:
                 try:
                     cached_analysis = json.loads(cached_analysis_json)
                     segments = cached_analysis.get("most_relevant_segments", [])
@@ -550,6 +578,8 @@ class VideoService:
                     transcript,
                     clip_signals=clip_signals,
                     performance_context=performance_context,
+                    custom_context=custom_context,
+                    language=language,
                 )
 
             # Step 4: Create clips

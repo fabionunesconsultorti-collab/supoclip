@@ -75,7 +75,7 @@ class YouTubeProvider(SocialProvider):
             "response_type": "code",
             "scope": " ".join(SCOPES),
             "access_type": "offline",
-            "prompt": "consent",
+            "prompt": "select_account consent",
             "include_granted_scopes": "true",
             "state": state,
         }
@@ -189,7 +189,27 @@ class YouTubeProvider(SocialProvider):
         privacy = PRIVACY_MAP.get(request.privacy_level, "private")
         title = (request.title or "").strip()[:TITLE_MAX_LENGTH] or "Untitled clip"
         hashtags = list(request.hashtags)
-        if not any(tag.lower().lstrip("#") == "shorts" for tag in hashtags):
+
+        # Detect if video is landscape/horizontal (w > h) or explicitly tagged as standard video
+        is_landscape = False
+        try:
+            from ..video_utils import ffprobe_video_size
+            w, h = ffprobe_video_size(request.file_path)
+            if w and h and w > h:
+                is_landscape = True
+        except Exception:
+            pass
+
+        is_standard_video = is_landscape or any(
+            tag.lower().lstrip("#") in {"noshorts", "standard", "video", "regular", "long"}
+            for tag in hashtags
+        )
+        hashtags = [
+            tag for tag in hashtags
+            if tag.lower().lstrip("#") not in {"noshorts", "standard", "video", "regular", "long"}
+        ]
+
+        if not is_standard_video and not any(tag.lower().lstrip("#") == "shorts" for tag in hashtags):
             hashtags.append("Shorts")
         description = build_caption(request.caption, hashtags, DESCRIPTION_MAX_LENGTH)
         tags = [tag.lstrip("#") for tag in hashtags if tag.strip("# ")][:30]
@@ -243,9 +263,10 @@ class YouTubeProvider(SocialProvider):
         video_id = payload.get("id")
         if not video_id:
             raise SocialProviderError("YouTube upload finished without a video id")
+        url_prefix = "watch?v=" if is_standard_video else "shorts/"
         return PublishResult(
             external_post_id=video_id,
-            external_url=f"https://www.youtube.com/shorts/{video_id}",
+            external_url=f"https://www.youtube.com/{url_prefix}{video_id}",
             raw=payload,
         )
 

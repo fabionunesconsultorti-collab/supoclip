@@ -77,6 +77,66 @@ SETTING_METADATA = {
         "description": "Optional B-roll stock footage provider key.",
         "input_type": "password",
     },
+    "RERANK_LLM": {
+        "label": "Rerank LLM model",
+        "description": "Optional separate model for candidate reranking.",
+        "input_type": "text",
+    },
+    "TRANSCRIPTION_PROVIDER": {
+        "label": "Transcription provider",
+        "description": "Audio transcription engine: 'whisper' (local) or 'assemblyai' (cloud).",
+        "input_type": "text",
+    },
+    "WHISPER_MODEL_SIZE": {
+        "label": "Whisper model size",
+        "description": "Model size for Whisper: 'base', 'small', 'tiny', 'medium'.",
+        "input_type": "text",
+    },
+    "MIN_CLIP_DURATION": {
+        "label": "Minimum clip duration (seconds)",
+        "description": "Minimum duration for any clip candidate in seconds (e.g. 60).",
+        "input_type": "number",
+    },
+    "MAX_CLIP_DURATION": {
+        "label": "Maximum clip duration (seconds)",
+        "description": "Maximum duration for any clip candidate in seconds (e.g. 90).",
+        "input_type": "number",
+    },
+    "IDEAL_CLIP_MIN_DURATION": {
+        "label": "Ideal minimum clip duration (seconds)",
+        "description": "Target lower duration in seconds for preferred clips (e.g. 60).",
+        "input_type": "number",
+    },
+    "IDEAL_CLIP_MAX_DURATION": {
+        "label": "Ideal maximum clip duration (seconds)",
+        "description": "Target upper duration in seconds for preferred clips (e.g. 90).",
+        "input_type": "number",
+    },
+    "CLIP_DURATION": {
+        "label": "Target clip duration (seconds)",
+        "description": "Default target clip duration in seconds (e.g. 60).",
+        "input_type": "number",
+    },
+    "MAX_CLIPS": {
+        "label": "Max clips per video",
+        "description": "Upper cap on the number of clips generated per source video (e.g. 10).",
+        "input_type": "number",
+    },
+    "ANALYSIS_TOTAL_TIMEOUT_SECONDS": {
+        "label": "Analysis total timeout (seconds)",
+        "description": "Total wall-clock timeout in seconds for transcript window analysis (e.g. 7200).",
+        "input_type": "number",
+    },
+    "TRANSCRIPTION_LANGUAGE": {
+        "label": "Default transcription language",
+        "description": "Spoken language code for transcription (e.g. 'pt', 'en', 'es', or empty for auto-detect).",
+        "input_type": "text",
+    },
+    "DEFAULT_GENERATION_CONTEXT": {
+        "label": "Default generation context",
+        "description": "Default creative guidance / prompt focus passed to the AI model for clip selection.",
+        "input_type": "text",
+    },
 }
 
 

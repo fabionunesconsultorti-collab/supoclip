@@ -57,6 +57,7 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import Link from "next/link";
 import { ClipTile, ClipFocus, ProcessingPanel, EmptyState } from "@/components/app/clip-wall";
+import { ThumbnailStudioModal } from "@/components/thumbnail/thumbnail-studio-modal";
 import { timeAgo } from "@/lib/generations";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
@@ -135,6 +136,7 @@ export default function TaskPage() {
   const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
   const [socialProviders, setSocialProviders] = useState<SocialProviderStatus[]>([]);
   const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
+  const [selectedThumbnailClip, setSelectedThumbnailClip] = useState<Clip | null>(null);
 
   // null means "use the caption template's own value" — mirrors the create form's contract.
   const [projectFontFamily, setProjectFontFamily] = useState<string | null>(null);
@@ -627,6 +629,7 @@ export default function TaskPage() {
       best={bestScore > 0 && clip.virality_score === bestScore}
       onOpen={() => setFocusIndex(index)}
       onDownload={() => handleDownloadClip(clip)}
+      onThumbnail={task?.status === "completed" && !readOnly ? () => setSelectedThumbnailClip(clip) : undefined}
       onDelete={readOnly ? undefined : () => setDeletingClipId(clip.id)}
       editable={task?.status === "completed" && !readOnly}
     />
@@ -812,6 +815,7 @@ export default function TaskPage() {
         onNavigate={(delta) => setFocusIndex((i) => (i === null ? i : (i + delta + sortedClips.length) % sortedClips.length))}
         onClose={() => setFocusIndex(null)}
         onDownload={() => focusedClip && handleDownloadClip(focusedClip)}
+        onThumbnail={task?.status === "completed" && !readOnly && focusedClip ? () => setSelectedThumbnailClip(focusedClip) : undefined}
         onDelete={readOnly ? undefined : () => { if (focusedClip) { setDeletingClipId(focusedClip.id); setFocusIndex(null); } }}
         hookTypeLabel={getHookTypeLabel}
         actions={focusedClip && task?.status === "completed" ? (
@@ -1034,6 +1038,13 @@ export default function TaskPage() {
         reason={upgradeReason ?? { kind: "limit" }}
         billing={billingSummary}
         source="task_resume"
+      />
+      <ThumbnailStudioModal
+        isOpen={selectedThumbnailClip !== null}
+        onClose={() => setSelectedThumbnailClip(null)}
+        clip={selectedThumbnailClip}
+        taskId={task?.id ?? String(params.id)}
+        onSaved={() => void fetchTaskStatus()}
       />
     </main>
   );

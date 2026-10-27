@@ -141,6 +141,38 @@ def test_youtube_publish_uses_resumable_upload(clip_file):
     assert init_call[2]["headers"]["X-Upload-Content-Length"] == "1024"
 
 
+def test_youtube_publish_standard_video_without_shorts_tag(clip_file):
+    session = FakeSession(
+        {
+            ("POST", "upload/youtube/v3/videos"): FakeResponse(
+                200, {}, headers={"Location": "https://upload.example/session"}
+            ),
+            ("PUT", "upload.example/session"): FakeResponse(200, {"id": "stdvid456"}),
+        }
+    )
+    provider = YouTubeProvider(_config(), session=session)
+    from src.social.base import PublishRequest
+
+    result = provider.publish(
+        "token",
+        PublishRequest(
+            file_path=clip_file,
+            title="My standard video",
+            caption="Caption for standard video",
+            hashtags=["noshorts", "tech"],
+            privacy_level="public",
+        ),
+    )
+    assert result.external_post_id == "stdvid456"
+    assert result.external_url == "https://www.youtube.com/watch?v=stdvid456"
+
+    init_call = session.calls[0]
+    body = init_call[2]["json"]
+    assert "#Shorts" not in body["snippet"]["description"]
+    assert "tech" in body["snippet"]["tags"]
+    assert "noshorts" not in body["snippet"]["tags"]
+
+
 def test_youtube_metrics_and_reauth_detection():
     session = FakeSession(
         {

@@ -76,6 +76,11 @@ class YouTubeDownloader:
             "nocheckcertificate": True,
             "prefer_insecure": False,
             "age_limit": None,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "ios", "web_embedded", "web"]
+                }
+            },
         }
 
         return opts
@@ -95,6 +100,11 @@ def _build_info_options() -> Dict[str, Any]:
             "Connection": "keep-alive",
         },
         "nocheckcertificate": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "ios", "web_embedded", "web"]
+            }
+        },
     }
     return ydl_opts
 
@@ -114,6 +124,8 @@ def _empty_video_info(video_id: Optional[str] = None) -> Dict[str, Any]:
         "resolution": None,
         "fps": None,
         "filesize": None,
+        "is_live": False,
+        "live_status": None,
     }
 
 
@@ -230,13 +242,15 @@ def get_youtube_video_id(url: str) -> Optional[str]:
 
     # Comprehensive regex patterns for different YouTube URL formats
     patterns = [
-        r"(?:youtube\.com/(?:.*v=|v/|embed/|shorts/)|youtu\.be/)([A-Za-z0-9_-]{11})",
+        r"(?:youtube\.com/(?:.*v=|v/|embed/|shorts/|live/)|youtu\.be/)([A-Za-z0-9_-]{11})",
         r"youtube\.com/watch\?v=([A-Za-z0-9_-]{11})",
+        r"youtube\.com/live/([A-Za-z0-9_-]{11})",
         r"youtube\.com/embed/([A-Za-z0-9_-]{11})",
         r"youtube\.com/v/([A-Za-z0-9_-]{11})",
         r"youtu\.be/([A-Za-z0-9_-]{11})",
         r"youtube\.com/shorts/([A-Za-z0-9_-]{11})",
         r"m\.youtube\.com/watch\?v=([A-Za-z0-9_-]{11})",
+        r"m\.youtube\.com/live/([A-Za-z0-9_-]{11})",
     ]
 
     for pattern in patterns:
@@ -290,6 +304,8 @@ def _fetch_video_info_with_ytdlp(url: str) -> Dict[str, Any]:
         "resolution": info.get("resolution"),
         "fps": info.get("fps"),
         "filesize": info.get("filesize"),
+        "is_live": bool(info.get("is_live") or info.get("live_status") == "is_live"),
+        "live_status": info.get("live_status") or ("is_live" if info.get("is_live") else "not_live"),
     }
 
 
@@ -342,6 +358,8 @@ def _fetch_video_info_with_youtube_data_api(url: str) -> Dict[str, Any]:
             "view_count": _parse_optional_int(statistics.get("viewCount")),
             "like_count": _parse_optional_int(statistics.get("likeCount")),
             "thumbnail": _pick_best_thumbnail(snippet.get("thumbnails")),
+            "is_live": snippet.get("liveBroadcastContent") == "live",
+            "live_status": snippet.get("liveBroadcastContent"),
         }
     )
     return normalized
@@ -673,15 +691,18 @@ def get_video_duration(url: str) -> Optional[int]:
 
 
 def is_video_suitable_for_processing(
-    url: str, min_duration: int = 60, max_duration: int = 7200
+    url: str, min_duration: int = 60, max_duration: int = 21600
 ) -> bool:
     """
     Check if video is suitable for processing based on duration and other factors.
-    Default limits: 1 minute to 2 hours.
+    Default limits: 1 minute to 6 hours.
     """
     video_info = get_youtube_video_info(url)
     if not video_info:
         return False
+
+    if video_info.get("is_live"):
+        return True
 
     duration = video_info.get("duration", 0)
 
@@ -691,8 +712,6 @@ def is_video_suitable_for_processing(
             f"Video duration {duration}s outside allowed range ({min_duration}-{max_duration}s)"
         )
         return False
-
-    # Additional checks could go here (e.g., content type, quality, etc.)
 
     return True
 

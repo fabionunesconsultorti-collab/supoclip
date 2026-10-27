@@ -5,8 +5,9 @@ import { Film } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** Silent video poster that previews on hover — used for generation and clip thumbnails. */
-export function ClipCover({ src, className, children }: {
+export function ClipCover({ src, poster, className, children }: {
   src: string | null;
+  poster?: string;
   className?: string;
   children?: React.ReactNode;
 }) {
@@ -30,6 +31,7 @@ export function ClipCover({ src, className, children }: {
         <video
           ref={videoRef}
           src={`${src}#t=0.5`}
+          poster={poster}
           muted
           loop
           playsInline

@@ -20,7 +20,7 @@ import { CreatorCodeField } from "@/components/billing/creator-code-field";
 import { toast } from "sonner";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { AlertCircle, Bot, Check, ChevronRight, CreditCard, Loader2, Mail, Megaphone, Share2, Type } from "lucide-react";
+import { AlertCircle, Bot, Check, ChevronRight, CreditCard, Loader2, Mail, Megaphone, Share2, Sliders, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
@@ -473,6 +473,18 @@ export default function SettingsPage() {
             </div>
           </Section>
         )}
+
+        <Link href="/settings/generation" className="group flex items-center gap-4 rounded-2xl border border-brand/40 bg-brand/5 p-5 transition-colors hover:border-brand">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-brand text-background"><Sliders className="size-4" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <span className="block text-sm font-semibold">Configurações de Geração (IA &amp; Clipes)</span>
+              <span className="rounded-full bg-brand/20 px-2 py-0.5 text-[10px] font-bold text-brand">Zero Restart</span>
+            </span>
+            <span className="block text-xs text-muted-foreground">Modelos de IA (Gemini/Ollama), Whisper e duração de cortes sem reiniciar o servidor</span>
+          </span>
+          <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        </Link>
 
         <Link href="/settings/api-keys" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
           <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Bot className="size-4" /></span>

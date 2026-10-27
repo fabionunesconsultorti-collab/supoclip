@@ -9,6 +9,7 @@ import logging
 import math
 import random
 import re
+import os
 
 import httpx
 from pydantic_ai import Agent, NativeOutput
@@ -26,11 +27,38 @@ from .runtime_settings import apply_settings_to_process_env
 
 logger = logging.getLogger(__name__)
 
-IDEAL_CLIP_MIN_SECONDS = 25
-IDEAL_CLIP_MAX_SECONDS = 50
-MIN_ACCEPTED_CLIP_SECONDS = 15
-MAX_ACCEPTED_CLIP_SECONDS = 60
-TRANSCRIPT_ANALYSIS_CACHE_VERSION = "windowed-rerank-v6"
+def get_ideal_clip_min_seconds(config: Config | None = None) -> int:
+    cfg = config or get_config()
+    return cfg.ideal_clip_min_duration
+
+
+def get_ideal_clip_max_seconds(config: Config | None = None) -> int:
+    cfg = config or get_config()
+    return cfg.ideal_clip_max_duration
+
+
+def get_min_accepted_clip_seconds(config: Config | None = None) -> int:
+    cfg = config or get_config()
+    return cfg.min_clip_duration
+
+
+def get_max_accepted_clip_seconds(config: Config | None = None) -> int:
+    cfg = config or get_config()
+    return cfg.max_clip_duration
+
+
+def get_analysis_total_timeout_seconds(config: Config | None = None) -> int:
+    cfg = config or get_config()
+    return cfg.analysis_total_timeout_seconds
+
+
+IDEAL_CLIP_MIN_SECONDS = int(os.getenv("IDEAL_CLIP_MIN_SECONDS", "60"))
+IDEAL_CLIP_MAX_SECONDS = int(os.getenv("IDEAL_CLIP_MAX_SECONDS", "90"))
+MIN_ACCEPTED_CLIP_SECONDS = int(os.getenv("MIN_CLIP_DURATION", "60"))
+MAX_ACCEPTED_CLIP_SECONDS = int(os.getenv("MAX_CLIP_DURATION", "90"))
+ANALYSIS_TOTAL_TIMEOUT_SECONDS = int(os.getenv("ANALYSIS_TOTAL_TIMEOUT_SECONDS", "7200"))
+
+TRANSCRIPT_ANALYSIS_CACHE_VERSION = "windowed-rerank-v7-min60s"
 TRANSCRIPT_ANALYSIS_MAX_ATTEMPTS = 3
 TRANSCRIPT_ANALYSIS_TIMEOUT_SECONDS = 600
 # Long transcripts are analysed in overlapping windows so every part of the
@@ -42,7 +70,6 @@ ANALYSIS_WINDOW_CONCURRENCY = 3
 ANALYSIS_WINDOW_SEGMENT_TARGET = "3-5"
 # Wall-clock budget for all windows together. Each window additionally keeps
 # its own TRANSCRIPT_ANALYSIS_TIMEOUT_SECONDS budget once it starts running.
-ANALYSIS_TOTAL_TIMEOUT_SECONDS = 1800
 RERANK_TIMEOUT_SECONDS = 240
 CANDIDATE_DEDUPE_OVERLAP_RATIO = 0.5
 # How far a model timestamp may sit from a transcript line boundary and still be
@@ -312,8 +339,14 @@ class TranscriptAnalysis(BaseModel):
     )
 
 
-# Enhanced system prompt with virality scoring and B-roll detection
-transcript_analysis_system_prompt = """You are an expert transcript analyst for short-form video editing.
+def build_transcript_analysis_system_prompt(config: Config | None = None) -> str:
+    cfg = config or get_config()
+    min_clip = cfg.min_clip_duration
+    max_clip = cfg.max_clip_duration
+    ideal_min = cfg.ideal_clip_min_duration
+    ideal_max = cfg.ideal_clip_max_duration
+
+    return f"""You are an expert transcript analyst for short-form video editing.
 
 Your job is extraction and ranking, not creative rewriting. You must stay fully grounded in the transcript and choose the best clip candidates that already exist in the source material.
 
@@ -324,7 +357,7 @@ OUTPUT CONTRACT:
 - Each item in "most_relevant_segments" must include: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", and "hook_title".
 - Do not use "segment" as an output field. Use "text".
 - "virality" must include: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", and "virality_reasoning".
-- Every returned segment must be 15-60 seconds long. Prefer 25-50 seconds.
+- Every returned segment must be {min_clip}-{max_clip} seconds long. Prefer {ideal_min}-{ideal_max} seconds.
 
 CORE OBJECTIVES:
 1. Identify segments that would be compelling on social media platforms
@@ -423,12 +456,11 @@ Identify 2-4 moments in each segment where B-roll footage could enhance the vide
 - Use simple, searchable keywords (e.g., "coffee shop", "laptop coding", "money stack")
 
 TIMING GUIDELINES:
-- Target 25-50 seconds for most clips
-- Use 15-24 seconds only when the moment is exceptionally dense, self-contained, and complete
-- CRITICAL: start_time MUST be different from end_time (minimum 15 seconds apart)
+- Target {ideal_min}-{ideal_max} seconds for most clips
+- CRITICAL: start_time MUST be different from end_time (minimum {min_clip} seconds apart)
 - Focus on natural content boundaries rather than arbitrary time limits
 - Include enough context for the segment to be understandable
-- Prefer roughly 30-50 seconds when possible
+- Prefer roughly {ideal_min}-{ideal_max} seconds when possible
 - Start at the hook or the minimum setup needed to make the hook land, and end after the payoff
 - If a highlight is only one good line, expand to include the surrounding setup and payoff rather than returning a tiny fragment
 - Stop expanding when the topic drifts, the speaker repeats the same point, or the clip loses momentum
@@ -437,11 +469,11 @@ TIMESTAMP REQUIREMENTS - EXTREMELY IMPORTANT:
 - Use EXACT timestamps as they appear in the transcript
 - Never modify timestamp format (keep MM:SS structure)
 - start_time MUST be LESS THAN end_time (start_time < end_time)
-- MINIMUM segment duration: 15 seconds (end_time - start_time >= 15 seconds)
-- IDEAL segment duration: 25-50 seconds
-- Look at transcript ranges like [02:25 - 02:35] and use different start/end times
+- MINIMUM segment duration: {min_clip} seconds (end_time - start_time >= {min_clip} seconds)
+- IDEAL segment duration: {ideal_min}-{ideal_max} seconds
+- Look at transcript ranges like [02:25 - 03:35] and use different start/end times
 - NEVER use the same timestamp for both start_time and end_time
-- Example: start_time: "02:25", end_time: "02:35" (NOT "02:25" and "02:25")
+- Example: start_time: "02:25", end_time: "03:35" (NOT "02:25" and "02:25")
 
 SCORING AND OUTPUT RULES:
 - relevance_score should reflect how well the segment works as a standalone short clip, not just whether the topic is generally important
@@ -450,6 +482,9 @@ SCORING AND OUTPUT RULES:
 - summary and key_topics must also stay grounded in the transcript and should not add outside interpretation
 
 Find the number of compelling segments requested in the task (usually 2-5) that would work well as standalone clips. Quality over quantity: choose fewer stronger segments over filling a quota. Every selected segment must be accurate, self-contained, have proper time ranges, and score high on virality metrics."""
+
+
+transcript_analysis_system_prompt = build_transcript_analysis_system_prompt()
 
 # Lazy-loaded agent to avoid import-time failures when API keys aren't set
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
@@ -571,6 +606,10 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
+        runtime_config.min_clip_duration,
+        runtime_config.max_clip_duration,
+        runtime_config.ideal_clip_min_duration,
+        runtime_config.ideal_clip_max_duration,
     )
     if _transcript_agent is None or _transcript_agent_signature != signature:
         apply_settings_to_process_env(runtime_config.as_runtime_settings())
@@ -581,7 +620,7 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
         _transcript_agent = Agent[None, TranscriptAnalysis](
             model=_build_transcript_model(runtime_config),
             output_type=NativeOutput(TranscriptAnalysis, strict=True) if provider == "openrouter" else TranscriptAnalysis,
-            system_prompt=transcript_analysis_system_prompt,
+            system_prompt=build_transcript_analysis_system_prompt(runtime_config),
             # Some local Ollama/OpenAI-compatible endpoints can return formatted
             # prose before settling on schema-valid JSON. Keep retries limited
             # while still allowing enough repair attempts for local models.
@@ -667,6 +706,105 @@ def get_rerank_agent() -> Agent[None, CandidateRanking]:
     return _rerank_agent
 
 
+class ThumbnailTitleSuggestions(BaseModel):
+    """Viral, click-worthy thumbnail headline suggestions."""
+
+    suggestions: List[str] = Field(
+        default_factory=list,
+        description="3 to 5 viral, punchy, high-CTR thumbnail headlines (3-7 words each) that stop the scroll",
+    )
+
+
+thumbnail_title_system_prompt = """You are a master viral social media editor for short-form videos (Reels, TikTok, YouTube Shorts).
+Your job is to generate 3 to 5 ultra-compelling, high-CTR thumbnail headlines based on a clip excerpt.
+
+Rules:
+- Length: 3 to 7 words per headline.
+- Punchy, high-impact, curiosity gap, bold statement, or high stakes.
+- Plain text only: NO emojis, NO hashtags, NO quotation marks.
+- Must be grounded in the clip content (never invent false facts).
+- Follow the requested language strictly.
+- Return valid JSON matching the schema."""
+
+_thumbnail_title_agent: Optional[Agent[None, ThumbnailTitleSuggestions]] = None
+_thumbnail_title_agent_signature: Optional[tuple[str | None, ...]] = None
+
+
+def get_thumbnail_title_agent() -> Agent[None, ThumbnailTitleSuggestions]:
+    """Get or create the thumbnail title agent (lazy initialization)."""
+    global _thumbnail_title_agent, _thumbnail_title_agent_signature
+    runtime_config = get_config()
+    model_name = runtime_config.llm
+    provider, _ = _split_llm_name(model_name)
+    signature = (
+        model_name,
+        runtime_config.openai_api_key,
+        runtime_config.openrouter_api_key,
+        runtime_config.openrouter_fallback_model,
+        runtime_config.google_api_key,
+        runtime_config.anthropic_api_key,
+        runtime_config.ollama_base_url,
+        runtime_config.ollama_api_key,
+    )
+    if _thumbnail_title_agent is None or _thumbnail_title_agent_signature != signature:
+        apply_settings_to_process_env(runtime_config.as_runtime_settings())
+        config_error = _get_missing_llm_key_error(model_name, runtime_config)
+        if config_error:
+            raise RuntimeError(config_error)
+
+        _thumbnail_title_agent = Agent[None, ThumbnailTitleSuggestions](
+            model=_build_transcript_model(runtime_config, model_name),
+            output_type=NativeOutput(ThumbnailTitleSuggestions, strict=True) if provider == "openrouter" else ThumbnailTitleSuggestions,
+            system_prompt=thumbnail_title_system_prompt,
+            output_retries=2,
+        )
+        _thumbnail_title_agent_signature = signature
+    return _thumbnail_title_agent
+
+
+async def generate_thumbnail_titles(
+    transcript_segment: str,
+    current_title: str | None = None,
+    language: str | None = None,
+) -> List[str]:
+    """Generate 3 to 5 viral, click-worthy thumbnail headlines using the connected LLM."""
+    runtime_config = get_config()
+    lang = language or runtime_config.transcription_language or "pt"
+    lang_map = {
+        "pt": "Portuguese (Português)",
+        "pt_br": "Portuguese (Português)",
+        "en": "English",
+        "es": "Spanish (Español)",
+        "fr": "French (Français)",
+        "de": "German (Deutsch)",
+        "it": "Italian (Italiano)",
+    }
+    lang_label = lang_map.get(lang.lower().replace("-", "_"), lang)
+
+    prompt = (
+        f"Generate 3-5 high-converting viral thumbnail headlines for this clip excerpt.\n"
+        f"Target language: {lang_label}\n"
+    )
+    if current_title:
+        prompt += f"Current clip title: {current_title}\n"
+    prompt += f"\nClip transcript:\n\"\"\"\n{transcript_segment.strip()[:2000]}\n\"\"\""
+
+    try:
+        agent = get_thumbnail_title_agent()
+        result = await _run_transcript_analysis(agent, prompt, timeout_seconds=30)
+        suggestions = getattr(result.output, "suggestions", [])
+        cleaned = [
+            sanitize_hook_title(s) for s in suggestions if s and sanitize_hook_title(s)
+        ]
+        if cleaned:
+            return cleaned
+    except Exception as exc:
+        logger.warning("Failed to generate thumbnail titles with AI: %s", exc)
+
+    fallback = [current_title] if current_title else ["Momento Chave", "Dica Imperdível", "Assista Até o Fim"]
+    return fallback
+
+
 def _performance_history_section(performance_context: str | None) -> str:
     """The creator's measured audience history, framed as a tie-breaker only."""
     if not performance_context:
@@ -681,8 +819,22 @@ def _performance_history_section(performance_context: str | None) -> str:
     )
 
 
+def _user_context_section(custom_context: str | None) -> str:
+    """The creator's requested focus and creative guidance."""
+    if not custom_context or not custom_context.strip():
+        return ""
+    return (
+        "\n\nUSER-SPECIFIED FOCUS & CREATIVE CONTEXT:\n"
+        "The user provided the following creative guidance/context for selecting clips from this video:\n"
+        f"\"\"\"\n{custom_context.strip()}\n\"\"\"\n"
+        "PRIORITY INSTRUCTION: Actively prioritize moments, stories, explanations, and segments that align with this creative guidance, while ensuring each clip has strong hook quality and standalone coherence."
+    )
+
+
 def build_candidate_rerank_prompt(
-    candidates: List[TranscriptSegment], performance_context: str | None = None
+    candidates: List[TranscriptSegment],
+    performance_context: str | None = None,
+    custom_context: str | None = None,
 ) -> str:
     """Describe every candidate in full so the reranker can compare them."""
     blocks = []
@@ -700,6 +852,7 @@ def build_candidate_rerank_prompt(
         f"Rank these {len(candidates)} clip candidates from the same video, best first.\n\n"
         + "\n\n".join(blocks)
         + _performance_history_section(performance_context)
+        + _user_context_section(custom_context)
     )
 
 
@@ -709,11 +862,15 @@ def build_transcript_analysis_prompt(
     clip_signals: str | None = None,
     window: tuple[int, int] | None = None,
     performance_context: str | None = None,
+    custom_context: str | None = None,
+    language: str | None = None,
 ) -> str:
     """Build the grounded task prompt for transcript analysis.
 
     ``window`` marks the prompt as one (start, end) slice of a longer source.
     ``performance_context`` is the creator's measured audience history, if any.
+    ``custom_context`` is the user's specific prompt/direction for clip focus.
+    ``language`` is the target language for hook titles and summaries.
     """
     segment_target = ANALYSIS_WINDOW_SEGMENT_TARGET if window else "2-5"
     window_note = ""
@@ -724,6 +881,7 @@ def build_transcript_analysis_prompt(
             "analysed separately, so pick the best clips that exist inside this window only.\n"
         )
     performance_section = _performance_history_section(performance_context)
+    user_context = _user_context_section(custom_context)
     broll_instruction = ""
     if include_broll:
         broll_instruction = (
@@ -737,6 +895,26 @@ def build_transcript_analysis_prompt(
             "Use these as hints only. They should influence ranking, but every final segment "
             "must still be a coherent contiguous transcript range."
         )
+
+    min_clip = get_min_accepted_clip_seconds()
+    max_clip = get_max_accepted_clip_seconds()
+    ideal_min = get_ideal_clip_min_seconds()
+    ideal_max = get_ideal_clip_max_seconds()
+
+    lang_rule = "in the transcript's language"
+    if language and language.strip() and language.strip().lower() != "auto":
+        normalized_lang = language.strip().lower().replace("-", "_")
+        lang_names = {
+            "pt": "Portuguese (Português)",
+            "pt_br": "Portuguese (Português)",
+            "en": "English",
+            "es": "Spanish (Español)",
+            "fr": "French (Français)",
+            "de": "German (Deutsch)",
+            "it": "Italian (Italiano)",
+        }
+        target_name = lang_names.get(normalized_lang, language.strip())
+        lang_rule = f"in {target_name}"
 
     return f"""Analyze this video transcript and identify the most engaging segments for short-form content.
 {window_note}
@@ -752,9 +930,9 @@ Follow this workflow:
 
 Selection target:
 - Choose {segment_target} segments total.
-- Most selected clips should be 25-50 seconds.
-- Only choose a 15-24 second clip when it already contains a full setup and payoff.
-- If a strong moment is shorter than 25 seconds, first try expanding to nearby contiguous transcript lines that add useful context.
+- Most selected clips should be {ideal_min}-{ideal_max} seconds.
+- Every selected clip must have at least {min_clip} seconds.
+- If a strong moment is shorter than {min_clip} seconds, expand to nearby contiguous transcript lines that add useful context.
 - Skip weak standalone picks: intros, sponsor reads, CTAs, contextless quotes, repeated points, vague setup, and answer fragments that require prior context.
 - Before returning a segment, ask whether a viewer would understand and care without seeing the rest of the source video.
 
@@ -766,7 +944,7 @@ Critical accuracy requirements:
 - If a span lacks enough context to stand alone, expand to nearby contiguous lines rather than guessing.
 - If there is a tradeoff between "viral" and "accurate", choose accuracy.
 - Do not reject or penalize a segment simply because of the subject matter; stay content-neutral and assess clip quality only.
-{signal_section}{performance_section}
+{signal_section}{performance_section}{user_context}
 
 JSON-only output requirements:
 - Return one valid JSON object and nothing else.
@@ -774,9 +952,9 @@ JSON-only output requirements:
 - Top-level keys: "most_relevant_segments", "summary", "key_topics", "broll_opportunities".{' Set "broll_opportunities" to null.' if not include_broll else ''}
 - Segment keys: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", "hook_title".
 - Optional segment keys "hook_start_time"/"hook_end_time": MM:SS range of the strongest 2-5 second line later in the segment (cold-open teaser), or null.
-- "hook_title" is a 3-9 word plain-text headline for the clip, in the transcript's language, grounded in the segment (no hashtags, emojis, or quotes).
+- "hook_title" is a 3-9 word plain-text headline for the clip, {lang_rule}, grounded in the segment (no hashtags, emojis, or quotes).
 - Virality keys: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", "virality_reasoning".
-- Do not return segments shorter than {MIN_ACCEPTED_CLIP_SECONDS} seconds or longer than {MAX_ACCEPTED_CLIP_SECONDS} seconds.
+- Do not return segments shorter than {min_clip} seconds or longer than {max_clip} seconds.
 
 Transcript:
 {transcript}"""
@@ -912,22 +1090,27 @@ def _choose_repaired_bounds(
     ends = sorted({span["end"] for span in transcript_spans})
     current_duration = end_seconds - start_seconds
 
-    if current_duration > MAX_ACCEPTED_CLIP_SECONDS:
-        target_end = start_seconds + IDEAL_CLIP_MAX_SECONDS
+    min_clip = get_min_accepted_clip_seconds()
+    max_clip = get_max_accepted_clip_seconds()
+    ideal_min = get_ideal_clip_min_seconds()
+    ideal_max = get_ideal_clip_max_seconds()
+
+    if current_duration > max_clip:
+        target_end = start_seconds + ideal_max
         candidate_ends = [
             candidate
             for candidate in ends
-            if start_seconds + MIN_ACCEPTED_CLIP_SECONDS
+            if start_seconds + min_clip
             <= candidate
             <= min(target_end, end_seconds)
         ]
         if candidate_ends:
             return start_seconds, max(candidate_ends)
-        if start_seconds + MIN_ACCEPTED_CLIP_SECONDS <= target_end:
+        if start_seconds + min_clip <= target_end:
             return start_seconds, target_end
         return None
 
-    if current_duration < MIN_ACCEPTED_CLIP_SECONDS:
+    if current_duration < min_clip:
         candidate_ranges: list[tuple[int, int, int]] = []
         for candidate_start in starts:
             if candidate_start > start_seconds:
@@ -936,15 +1119,15 @@ def _choose_repaired_bounds(
                 if candidate_end < end_seconds:
                     continue
                 duration = candidate_end - candidate_start
-                if MIN_ACCEPTED_CLIP_SECONDS <= duration <= MAX_ACCEPTED_CLIP_SECONDS:
+                if min_clip <= duration <= max_clip:
                     extra_context = (start_seconds - candidate_start) + (
                         candidate_end - end_seconds
                     )
                     ideal_penalty = 0
-                    if duration < IDEAL_CLIP_MIN_SECONDS:
-                        ideal_penalty = IDEAL_CLIP_MIN_SECONDS - duration
-                    elif duration > IDEAL_CLIP_MAX_SECONDS:
-                        ideal_penalty = duration - IDEAL_CLIP_MAX_SECONDS
+                    if duration < ideal_min:
+                        ideal_penalty = ideal_min - duration
+                    elif duration > ideal_max:
+                        ideal_penalty = duration - ideal_max
                     candidate_ranges.append(
                         (ideal_penalty * 1000 + extra_context, candidate_start, candidate_end)
                     )
@@ -1277,12 +1460,15 @@ def apply_candidate_ranking(
 
 
 async def rerank_candidates(
-    candidates: List[TranscriptSegment], performance_context: str | None = None
+    candidates: List[TranscriptSegment],
+    performance_context: str | None = None,
+    custom_context: str | None = None,
 ) -> List[TranscriptSegment]:
     """Compare all candidates in one call; keep first-pass order if that fails.
 
     ``performance_context`` lets the creator's audience history shape the
     final selection too, not just each window's first pass.
+    ``custom_context`` biases rerank scores towards the user's specific guidance.
     """
     if len(candidates) < 2:
         return candidates
@@ -1290,7 +1476,7 @@ async def rerank_candidates(
         agent = get_rerank_agent()
         result = await _run_transcript_analysis(
             agent,
-            build_candidate_rerank_prompt(candidates, performance_context),
+            build_candidate_rerank_prompt(candidates, performance_context, custom_context),
             timeout_seconds=RERANK_TIMEOUT_SECONDS,
         )
         reranked = apply_candidate_ranking(candidates, result.output)
@@ -1310,6 +1496,8 @@ async def _analyze_transcript_windows(
     include_broll: bool,
     clip_signals: Optional[str],
     performance_context: Optional[str] = None,
+    custom_context: Optional[str] = None,
+    language: Optional[str] = None,
 ) -> List[TranscriptAnalysis]:
     """Analyse windows with bounded concurrency, tolerating some failures.
 
@@ -1327,6 +1515,8 @@ async def _analyze_transcript_windows(
                 ),
                 window=(window["start"], window["end"]),
                 performance_context=performance_context,
+                custom_context=custom_context,
+                language=language,
             )
             result = await _run_transcript_analysis(agent, prompt)
             return result.output
@@ -1540,6 +1730,8 @@ async def get_most_relevant_parts_by_transcript(
     include_broll: bool = False,
     clip_signals: str | None = None,
     performance_context: str | None = None,
+    custom_context: str | None = None,
+    language: str | None = None,
 ) -> TranscriptAnalysis:
     """Get the most relevant parts of a transcript with virality scoring and optional B-roll detection.
 
@@ -1548,7 +1740,7 @@ async def get_most_relevant_parts_by_transcript(
     in one comparative call so scores are comparable across windows.
     """
     logger.info(
-        f"Starting AI analysis of transcript ({len(transcript)} chars), include_broll={include_broll}"
+        f"Starting AI analysis of transcript ({len(transcript)} chars), include_broll={include_broll}, has_custom_context={bool(custom_context)}"
     )
 
     try:
@@ -1565,13 +1757,21 @@ async def get_most_relevant_parts_by_transcript(
                     include_broll=include_broll,
                     clip_signals=clip_signals,
                     performance_context=performance_context,
+                    custom_context=custom_context,
+                    language=language,
                 )
             )
             analyses = [result.output]
         else:
             logger.info("Analysing transcript in %d overlapping windows", len(windows))
             analyses = await _analyze_transcript_windows(
-                agent, windows, include_broll, clip_signals, performance_context
+                agent,
+                windows,
+                include_broll,
+                clip_signals,
+                performance_context,
+                custom_context=custom_context,
+                language=language,
             )
 
         candidates: List[TranscriptSegment] = []
@@ -1589,7 +1789,7 @@ async def get_most_relevant_parts_by_transcript(
         # near-duplicates; then compare across windows in one rerank call.
         candidates = dedupe_overlapping_segments(candidates)
         if len(windows) > 1:
-            candidates = await rerank_candidates(candidates, performance_context)
+            candidates = await rerank_candidates(candidates, performance_context, custom_context)
 
         source_seconds = max(
             (line["end_seconds"] for line in transcript_lines), default=0
@@ -1632,3 +1832,19 @@ async def get_most_relevant_parts_by_transcript(
 def get_most_relevant_parts_sync(transcript: str) -> TranscriptAnalysis:
     """Synchronous wrapper for the async function."""
     return asyncio.run(get_most_relevant_parts_by_transcript(transcript))
+
+
+def __getattr__(name: str) -> Any:
+    if name == "IDEAL_CLIP_MIN_SECONDS":
+        return get_ideal_clip_min_seconds()
+    if name == "IDEAL_CLIP_MAX_SECONDS":
+        return get_ideal_clip_max_seconds()
+    if name == "MIN_ACCEPTED_CLIP_SECONDS":
+        return get_min_accepted_clip_seconds()
+    if name == "MAX_ACCEPTED_CLIP_SECONDS":
+        return get_max_accepted_clip_seconds()
+    if name == "ANALYSIS_TOTAL_TIMEOUT_SECONDS":
+        return get_analysis_total_timeout_seconds()
+    if name == "transcript_analysis_system_prompt":
+        return build_transcript_analysis_system_prompt()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
