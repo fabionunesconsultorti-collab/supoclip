@@ -76,11 +76,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {!compact && "SupoClip"}
         </Link>
 
-        <SidebarLink compact={compact} href="/" label="New generation" shortcut="N" className="mb-4 mt-1 bg-foreground text-background hover:bg-foreground/90 hover:text-background">
+        <SidebarLink compact={compact} href="/" label="Nova geração" shortcut="N" className="mb-4 mt-1 bg-foreground text-background hover:bg-foreground/90 hover:text-background">
           <Plus className="size-4" />
         </SidebarLink>
 
-        <nav aria-label="Main navigation" className="flex w-full flex-col gap-0.5">
+        <nav aria-label="Navegação principal" className="flex w-full flex-col gap-0.5">
           {items.map((item) => {
             const active = item.match(pathname);
             return (
@@ -98,10 +98,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             "mt-4 flex h-9 w-full items-center gap-2 rounded-lg border border-sidebar-border bg-background text-sm text-muted-foreground transition-colors hover:text-foreground",
             compact ? "justify-center px-0" : "px-2.5",
           )}
-          aria-label="Search generations"
+          aria-label="Buscar gerações"
         >
           <Search className="size-4 shrink-0" />
-          {!compact && <><span className="flex-1 text-left">Search</span><Kbd>⌘K</Kbd></>}
+          {!compact && <><span className="flex-1 text-left">Buscar</span><Kbd>⌘K</Kbd></>}
         </button>
 
         <div className="mt-auto w-full space-y-2 pb-3">
@@ -177,9 +177,9 @@ function UsageCard({ billing }: { billing: NonNullable<ReturnType<typeof useBill
   const pct = limit ? Math.min(100, (billing.usage_count / limit) * 100) : 0;
   const upgrade = getUpgradeState(billing);
   const nudge = !upgrade?.isPaid
-    ? "Pick a plan to start clipping"
+    ? "Escolha um plano para criar cortes"
     : upgrade.nextPlan && (upgrade.atLimit || upgrade.nearLimit)
-    ? `Get more with ${upgrade.nextPlan.name}`
+    ? `Amplie com o plano ${upgrade.nextPlan.name}`
     : null;
   return (
     <Link href="/settings#plan" className="group block rounded-xl border border-sidebar-border bg-background p-3 text-xs transition-colors hover:border-foreground/20">
@@ -198,7 +198,7 @@ function UsageCard({ billing }: { billing: NonNullable<ReturnType<typeof useBill
           <ArrowRight className="ml-auto size-3 transition-transform group-hover:translate-x-0.5" />
         </p>
       ) : (
-        <p className="mt-2 text-muted-foreground">{limit && upgrade?.remaining !== null ? `${upgrade?.remaining} left this period` : "videos this period"}</p>
+        <p className="mt-2 text-muted-foreground">{limit && upgrade?.remaining !== null ? `${upgrade?.remaining} restantes neste período` : "vídeos neste período"}</p>
       )}
     </Link>
   );
@@ -209,7 +209,7 @@ function UserRow({ compact, name, email }: { compact: boolean; name?: string | n
   const handleSignOut = async () => {
     setSigningOut(true);
     try { await signOut(); window.location.assign("/sign-in"); }
-    catch { toast.error("Could not sign out. Please try again."); setSigningOut(false); }
+    catch { toast.error("Não foi possível sair. Tente novamente."); setSigningOut(false); }
   };
   return (
     <div className={cn("flex items-center gap-2 rounded-lg", compact ? "flex-col" : "px-1.5 py-1")}>
@@ -218,18 +218,18 @@ function UserRow({ compact, name, email }: { compact: boolean; name?: string | n
       </span>
       {!compact && (
         <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-sm font-medium">{name || "Creator"}</p>
+          <p className="truncate text-sm font-medium">{name || "Criador"}</p>
           <p className="truncate text-xs text-muted-foreground">{email}</p>
         </div>
       )}
       <Tooltip>
         <TooltipTrigger asChild>
-          <button type="button" onClick={() => void handleSignOut()} disabled={signingOut} aria-label="Sign out"
+          <button type="button" onClick={() => void handleSignOut()} disabled={signingOut} aria-label="Sair da conta"
             className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground disabled:opacity-50">
             <LogOut className="size-4" />
           </button>
         </TooltipTrigger>
-        <TooltipContent side={compact ? "right" : "top"}>{signingOut ? "Signing out…" : "Sign out"}</TooltipContent>
+        <TooltipContent side={compact ? "right" : "top"}>{signingOut ? "Saindo…" : "Sair da conta"}</TooltipContent>
       </Tooltip>
     </div>
   );
@@ -255,13 +255,13 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
   const entries = useMemo<PaletteEntry[]>(() => {
     const q = query.trim().toLowerCase();
     const actions: PaletteEntry[] = [
-      { id: "new", label: "New generation", hint: "Paste a link or upload", href: "/", icon: Plus },
-      { id: "library", label: "Open library", href: "/list", icon: Film },
-      { id: "generation", label: "Generation settings", hint: "AI models, Whisper & clip durations", href: "/settings/generation", icon: Sliders },
-      ...(socialAccess ? [{ id: "social", label: "Social accounts", hint: "Connect YouTube, TikTok & Instagram", href: "/settings/social", icon: Share2 },
-      { id: "analytics", label: "Analytics", hint: "How your published clips perform", href: "/analytics", icon: ChartColumn }] : []),
-      { id: "keys", label: "Agents & API", hint: "API keys & MCP", href: "/settings/api-keys", icon: Bot },
-      { id: "settings", label: "Settings", href: "/settings", icon: Settings },
+      { id: "new", label: "Nova geração", hint: "Colar um link ou enviar arquivo", href: "/", icon: Plus },
+      { id: "library", label: "Abrir biblioteca", href: "/list", icon: Film },
+      { id: "generation", label: "Configurações de Geração", hint: "Modelos IA, Whisper e durações", href: "/settings/generation", icon: Sliders },
+      ...(socialAccess ? [{ id: "social", label: "Redes Sociais", hint: "Conectar YouTube, TikTok e Instagram", href: "/settings/social", icon: Share2 },
+      { id: "analytics", label: "Métricas", hint: "Desempenho dos cortes publicados", href: "/analytics", icon: ChartColumn }] : []),
+      { id: "keys", label: "Agentes & API", hint: "Chaves de API e MCP", href: "/settings/api-keys", icon: Bot },
+      { id: "settings", label: "Configurações", href: "/settings", icon: Settings },
     ].filter((entry) => !q || entry.label.toLowerCase().includes(q));
     const matches = generations
       .filter((generation) => !q || generation.source_title.toLowerCase().includes(q))
@@ -286,7 +286,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} className="top-[18%] max-w-xl translate-y-0 gap-0 overflow-hidden p-0">
-        <DialogTitle className="sr-only">Search</DialogTitle>
+        <DialogTitle className="sr-only">Buscar</DialogTitle>
         <div className="flex items-center gap-3 border-b px-4">
           <Search className="size-4 text-muted-foreground" />
           <input
@@ -298,14 +298,14 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
               if (event.key === "ArrowUp") { event.preventDefault(); setActive((i) => Math.max(0, i - 1)); }
               if (event.key === "Enter") { event.preventDefault(); go(entries[active]); }
             }}
-            placeholder="Search generations or jump to…"
-            aria-label="Search generations or jump to a page"
+            placeholder="Buscar gerações ou ir para uma página…"
+            aria-label="Buscar gerações ou ir para uma página"
             className="h-12 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
           <Kbd>esc</Kbd>
         </div>
         <div ref={listRef} className="max-h-80 overflow-y-auto p-1.5" role="listbox">
-          {entries.length === 0 && <p className="px-3 py-8 text-center text-sm text-muted-foreground">Nothing matches “{query}”.</p>}
+          {entries.length === 0 && <p className="px-3 py-8 text-center text-sm text-muted-foreground">Nenhum resultado para “{query}”.</p>}
           {entries.map((entry, index) => (
             <button
               key={entry.id}

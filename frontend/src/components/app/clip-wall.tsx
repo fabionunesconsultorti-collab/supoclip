@@ -35,7 +35,7 @@ export interface WallClip {
 }
 
 function clipTitle(clip: WallClip) {
-  return clip.hook_title || `Clip ${clip.clip_order}`;
+  return clip.hook_title || `Corte ${clip.clip_order}`;
 }
 
 export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownload, onThumbnail, onDelete }: {
@@ -54,7 +54,7 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
       <button
         type="button"
         onClick={onOpen}
-        aria-label={`Preview ${clipTitle(clip)}`}
+        aria-label={`Visualizar ${clipTitle(clip)}`}
         className="block w-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         <ClipCover
@@ -65,7 +65,7 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/25" />
           {best && (
             <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-foreground shadow">
-              <Flame className="size-3" />Top pick
+              <Flame className="size-3" />Destaque
             </span>
           )}
           {clip.virality_score > 0 && (
@@ -83,8 +83,8 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
         <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{clipTitle(clip)}</h3>
         <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">{clip.start_time} – {clip.end_time}</p>
         <div className="mt-2 flex items-center gap-1">
-          <Button size="sm" variant="outline" className="h-7 flex-1 px-2 text-xs" onClick={onDownload} disabled={busy} aria-label={`Download ${clipTitle(clip)}`}>
-            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}<span className="hidden @min-[190px]:inline">Download</span>
+          <Button size="sm" variant="outline" className="h-7 flex-1 px-2 text-xs" onClick={onDownload} disabled={busy} aria-label={`Baixar ${clipTitle(clip)}`}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}<span className="hidden @min-[190px]:inline">Baixar</span>
           </Button>
           {onThumbnail && (
             <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-amber-600 dark:text-amber-400 hover:text-amber-500" onClick={onThumbnail} title="Criar ou editar thumbnail">
@@ -93,11 +93,11 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
           )}
           {editable && (
             <Button size="sm" variant="outline" className="h-7 px-2 text-xs" asChild>
-              <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-3.5" />Edit</Link>
+              <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-3.5" />Editar</Link>
             </Button>
           )}
           {onDelete && (
-            <Button size="icon-sm" variant="ghost" className="size-7 text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete} aria-label="Delete clip">
+            <Button size="icon-sm" variant="ghost" className="size-7 text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete} aria-label="Excluir corte">
               <Trash2 className="size-3.5" />
             </Button>
           )}
@@ -108,10 +108,10 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
 }
 
 const BREAKDOWN = [
-  { key: "hook_score", label: "Hook", icon: MessageSquare },
-  { key: "engagement_score", label: "Engagement", icon: TrendingUp },
-  { key: "value_score", label: "Value", icon: Star },
-  { key: "shareability_score", label: "Shareability", icon: Share2 },
+  { key: "hook_score", label: "Gancho", icon: MessageSquare },
+  { key: "engagement_score", label: "Engajamento", icon: TrendingUp },
+  { key: "value_score", label: "Valor", icon: Star },
+  { key: "shareability_score", label: "Compartilhamento", icon: Share2 },
 ] as const;
 
 export function ClipFocus({ clip, taskId, index, total, busy, editable, onNavigate, onClose, onDownload, onDelete, onThumbnail, hookTypeLabel, actions, children }: {
@@ -153,10 +153,10 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
             </div>
             <div className="flex min-h-0 flex-col overflow-y-auto">
               <div className="flex items-center justify-between gap-2 border-b px-5 py-3 pr-12 text-xs text-muted-foreground">
-                <span className="tabular-nums">Clip {index + 1} of {total}</span>
+                <span className="tabular-nums">Corte {index + 1} de {total}</span>
                 <div className="flex items-center gap-1">
-                  <Button size="icon-sm" variant="ghost" onClick={() => onNavigate(-1)} aria-label="Previous clip"><ChevronLeft className="size-4" /></Button>
-                  <Button size="icon-sm" variant="ghost" onClick={() => onNavigate(1)} aria-label="Next clip"><ChevronRight className="size-4" /></Button>
+                  <Button size="icon-sm" variant="ghost" onClick={() => onNavigate(-1)} aria-label="Corte anterior"><ChevronLeft className="size-4" /></Button>
+                  <Button size="icon-sm" variant="ghost" onClick={() => onNavigate(1)} aria-label="Próximo corte"><ChevronRight className="size-4" /></Button>
                 </div>
               </div>
               <div className="space-y-5 p-5">
@@ -172,10 +172,10 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                     <div className="flex items-center gap-4">
                       <ScoreRing score={clip.virality_score} size={56} className="text-foreground [&>span]:text-base" />
                       <div>
-                        <p className="text-sm font-semibold">Virality score</p>
+                        <p className="text-sm font-semibold">Potencial Viral</p>
                         <p className="text-xs text-muted-foreground">
                           {clip.hook_type && clip.hook_type !== "none" ? `${hookTypeLabel(clip.hook_type)} · ` : ""}
-                          {Math.round(clip.relevance_score * 100)}% relevance
+                          {Math.round(clip.relevance_score * 100)}% de relevância
                         </p>
                       </div>
                     </div>
@@ -200,7 +200,7 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
               </div>
               <div className="mt-auto flex flex-wrap items-center gap-2 border-t bg-muted/30 px-5 py-3">
                 <Button size="sm" onClick={onDownload} disabled={busy}>
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}Download
+                  {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}Baixar
                 </Button>
                 {onThumbnail && (
                   <Button size="sm" variant="outline" onClick={onThumbnail} className="gap-1.5 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10">
@@ -209,13 +209,13 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                 )}
                 {editable && (
                   <Button size="sm" variant="outline" asChild>
-                    <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-4" />Open in editor</Link>
+                    <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-4" />Abrir no editor</Link>
                   </Button>
                 )}
                 {actions}
                 {onDelete && (
                   <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete}>
-                    <Trash2 className="size-4" />Delete
+                    <Trash2 className="size-4" />Excluir
                   </Button>
                 )}
               </div>
@@ -228,10 +228,10 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
 }
 
 const STEPS = [
-  { label: "Fetching video", icon: Download, until: 20 },
-  { label: "Transcribing", icon: AudioLines, until: 45 },
-  { label: "Finding moments", icon: Sparkles, until: 65 },
-  { label: "Rendering clips", icon: Clapperboard, until: 100 },
+  { label: "Baixando vídeo", icon: Download, until: 20 },
+  { label: "Transcrevendo", icon: AudioLines, until: 45 },
+  { label: "Identificando momentos", icon: Sparkles, until: 65 },
+  { label: "Renderizando cortes", icon: Clapperboard, until: 100 },
 ];
 
 function stepFromMessage(message: string) {
@@ -253,9 +253,9 @@ export function ProcessingPanel({ status, progress, message, readyCount }: { sta
       </div>
       <div className="flex flex-col gap-6 p-5 sm:p-6 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
-          <p className="shimmer text-lg font-semibold">{message || (status === "queued" ? "Waiting in queue" : "Processing")}</p>
+          <p className="shimmer text-lg font-semibold">{message || (status === "queued" ? "Aguardando na fila" : "Processando")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {readyCount > 0 ? `${readyCount} clip${readyCount === 1 ? "" : "s"} ready below — more on the way.` : "Grab a coffee — clips appear here the moment they render."}
+            {readyCount > 0 ? `${readyCount} corte${readyCount === 1 ? "" : "s"} pronto${readyCount === 1 ? "" : "s"} abaixo — mais a caminho.` : "Seus cortes aparecerão aqui assim que forem renderizados."}
           </p>
         </div>
         <ol className="grid grid-cols-4 gap-2 md:flex md:gap-1">

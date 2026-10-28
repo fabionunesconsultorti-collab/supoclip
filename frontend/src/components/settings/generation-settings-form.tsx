@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
@@ -30,6 +30,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { RuntimeSetting } from "@/components/admin/runtime-settings-form";
+import { McpConnectionPanel } from "@/components/settings/mcp-connection-panel";
 
 interface GenerationSettingsFormProps {
   settings: RuntimeSetting[];
@@ -84,22 +85,22 @@ const DURATION_PRESETS: DurationPreset[] = [
 
 const GEMINI_MODELS = [
   {
+    id: "mcp:gemini-pro",
+    name: "Gemini Pro & Flow (MCP)",
+    badge: "Sua Assinatura",
+    description: "Usa sua conta Google Gemini Pro e Google Flow conectada via MCP (análise, títulos e capas IA).",
+  },
+  {
     id: "google-gla:gemini-3.1-flash-lite",
     name: "Gemini 3.1 Flash Lite",
-    badge: "Recomendado",
-    description: "Ultra-rápido (~2s de inferência), alta precisão e sem limites estritos de taxa.",
+    badge: "Recomendado API",
+    description: "Ultra-rápido (~2s de inferência), alta precisão via Google AI Studio API Key.",
   },
   {
     id: "google-gla:gemini-3.8-flash",
     name: "Gemini 3.8 Flash",
     badge: "Nova Geração",
     description: "Modelo de ponta do Google com virality scoring e raciocínio avançado.",
-  },
-  {
-    id: "google-gla:gemini-3.7-flash",
-    name: "Gemini 3.7 Flash",
-    badge: "Estável",
-    description: "Alta estabilidade e consistência comprovada para cortes longos.",
   },
 ];
 
@@ -128,38 +129,45 @@ export function GenerationSettingsForm({
   const [isPending, startTransition] = useTransition();
   const [isSaving, setIsSaving] = useState(false);
 
+  // Local copy of the server state, refreshed from the PATCH response so the
+  // form immediately reflects what was persisted.
+  const [serverSettings, setServerSettings] = useState<RuntimeSetting[]>(settings);
+  useEffect(() => setServerSettings(settings), [settings]);
+
   // Map settings to lookup by key
   const settingsMap = useMemo(
-    () => new Map(settings.map((s) => [s.key, s])),
-    [settings]
+    () => new Map(serverSettings.map((s) => [s.key, s])),
+    [serverSettings]
   );
 
   // Form values state
   const [values, setValues] = useState<Record<string, string>>({});
 
-  // Helper to get current value (override or loaded)
+  // Helper to get current value: pending edit > value saved on the server > fallback
   const getValue = (key: string, fallback: string = ""): string => {
     if (values[key] !== undefined) return values[key];
-    const s = settingsMap.get(key);
-    if (!s) return fallback;
+    const saved = settingsMap.get(key)?.value;
+    if (saved !== undefined && saved !== null && saved !== "") return saved;
     return fallback;
   };
 
   // State for parsed active values
-  const currentLlm = values["LLM"] ?? "google-gla:gemini-3.1-flash-lite";
-  const currentTranscription = values["TRANSCRIPTION_PROVIDER"] ?? "whisper";
-  const currentWhisperSize = values["WHISPER_MODEL_SIZE"] ?? "base";
-  const currentLanguage = values["TRANSCRIPTION_LANGUAGE"] ?? "";
-  const currentContext = values["DEFAULT_GENERATION_CONTEXT"] ?? "";
-  const minClipDuration = Number(values["MIN_CLIP_DURATION"] ?? 60);
-  const maxClipDuration = Number(values["MAX_CLIP_DURATION"] ?? 90);
-  const idealMinDuration = Number(values["IDEAL_CLIP_MIN_DURATION"] ?? 60);
-  const idealMaxDuration = Number(values["IDEAL_CLIP_MAX_DURATION"] ?? 90);
-  const maxClips = Number(values["MAX_CLIPS"] ?? 10);
-  const timeoutSeconds = Number(values["ANALYSIS_TOTAL_TIMEOUT_SECONDS"] ?? 7200);
+  const currentLlm = getValue("LLM", "google-gla:gemini-3.1-flash-lite");
+  const currentTranscription = getValue("TRANSCRIPTION_PROVIDER", "whisper");
+  const currentWhisperSize = getValue("WHISPER_MODEL_SIZE", "base");
+  const currentLanguage = getValue("TRANSCRIPTION_LANGUAGE", "");
+  const currentContext = getValue("DEFAULT_GENERATION_CONTEXT", "");
+  const minClipDuration = Number(getValue("MIN_CLIP_DURATION", "60"));
+  const maxClipDuration = Number(getValue("MAX_CLIP_DURATION", "90"));
+  const idealMinDuration = Number(getValue("IDEAL_CLIP_MIN_DURATION", "60"));
+  const idealMaxDuration = Number(getValue("IDEAL_CLIP_MAX_DURATION", "90"));
+  const maxClips = Number(getValue("MAX_CLIPS", "10"));
+  const timeoutSeconds = Number(getValue("ANALYSIS_TOTAL_TIMEOUT_SECONDS", "7200"));
 
-  // Has changes
-  const hasChanges = Object.keys(values).length > 0;
+  // Only count edits that differ from what is already saved
+  const hasChanges = Object.entries(values).some(
+    ([key, value]) => (settingsMap.get(key)?.value ?? "") !== value
+  );
 
   const handleUpdate = (key: string, value: string) => {
     setValues((prev) => ({
@@ -186,14 +194,20 @@ export function GenerationSettingsForm({
 
     setIsSaving(true);
     try {
+      // Send only the fields that actually changed versus the saved state.
+      const changed = Object.fromEntries(
+        Object.entries(values).filter(
+          ([key, value]) => (settingsMap.get(key)?.value ?? "") !== value
+        )
+      );
       const response = await fetch(apiEndpoint, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          updates: values,
+          updates: changed,
           delete_keys: [],
           prefer_admin_values: Object.fromEntries(
-            Object.keys(values).map((k) => [k, true])
+            Object.keys(changed).map((k) => [k, true])
           ),
         }),
       });
@@ -205,8 +219,13 @@ export function GenerationSettingsForm({
         );
       }
 
+      const payload = (await response.json().catch(() => null)) as
+        | { settings?: RuntimeSetting[] }
+        | null;
+      if (payload?.settings?.length) setServerSettings(payload.settings);
+
       toast.success(
-        "Configurações atualizadas com sucesso! Os novos parâmetros já estão em vigor para as próximas gerações sem reiniciar o servidor."
+        "Configurações salvas! Os novos parâmetros já valem para as próximas gerações, sem reiniciar o servidor."
       );
       setValues({});
       startTransition(() => router.refresh());
@@ -331,9 +350,9 @@ export function GenerationSettingsForm({
                 className="mt-2 font-mono text-xs"
               />
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Exemplos: <code className="text-foreground">google-gla:gemini-3.1-flash-lite</code>,{" "}
-                <code className="text-foreground">ollama:llama3.2:latest</code>,{" "}
-                <code className="text-foreground">openai:gpt-5.2</code>
+                Exemplos: <code className="text-foreground">mcp:gemini-pro</code>,{" "}
+                <code className="text-foreground">google-gla:gemini-3.1-flash-lite</code>,{" "}
+                <code className="text-foreground">ollama:llama3.2:latest</code>
               </p>
             </div>
 
@@ -365,6 +384,9 @@ export function GenerationSettingsForm({
               </p>
             </div>
           </div>
+
+          {/* MCP Gemini Pro & Flow Panel */}
+          <McpConnectionPanel onSettingsChanged={() => startTransition(() => router.refresh())} />
 
           {/* Local Ollama Option */}
           <div className="rounded-xl border bg-muted/20 p-4">

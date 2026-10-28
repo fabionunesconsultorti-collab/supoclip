@@ -361,6 +361,8 @@ async def supoclip_create_clip_task(
     font_color: str = "",
     cut_long_pauses: bool = True,
     remove_filler_words: bool = True,
+    language: str = "",
+    custom_context: str = "",
 ) -> str:
     """Create a SupoClip task that downloads a video and generates viral short clips.
 
@@ -421,6 +423,10 @@ async def supoclip_create_clip_task(
 
     body["cut_long_pauses"] = bool(cut_long_pauses)
     body["remove_filler_words"] = bool(remove_filler_words)
+    if language and language.strip():
+        body["language"] = language.strip()[:20]
+    if custom_context and custom_context.strip():
+        body["custom_context"] = custom_context.strip()[:2000]
 
     data = await _client().request("POST", "/tasks/", json_body=body)
     return _json(data)
@@ -777,6 +783,49 @@ async def supoclip_delete_task(
         str: JSON ``{"message": str}``.
     """
     data = await _client().request("DELETE", f"/tasks/{task_id}")
+    return _json(data)
+
+
+@mcp.tool(
+    name="supoclip_generate_thumbnail_titles",
+    annotations={
+        "title": "Generate Viral Thumbnail Titles",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+)
+@tool_errors
+async def supoclip_generate_thumbnail_titles(
+    task_id: Annotated[str, Field(description="The task id that owns the clip.", min_length=1)],
+    clip_id: Annotated[str, Field(description="The clip id to generate thumbnail titles for.", min_length=1)],
+    language: str = "",
+) -> str:
+    """Generate 3 to 5 viral thumbnail headline suggestions for a clip using the connected AI model."""
+    payload: dict = {}
+    if language and language.strip():
+        payload["language"] = language.strip()
+    data = await _client().request(
+        "POST", f"/tasks/{task_id}/clips/{clip_id}/suggest-titles", json_body=payload
+    )
+    return _json(data)
+
+
+@mcp.tool(
+    name="supoclip_mcp_status",
+    annotations={
+        "title": "Gemini Pro & Google Flow MCP Status",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+@tool_errors
+async def supoclip_mcp_status() -> str:
+    """Check the status of the connected Gemini Pro and Google Flow MCP bridge on the backend."""
+    data = await _client().request("GET", "/mcp/status")
     return _json(data)
 
 

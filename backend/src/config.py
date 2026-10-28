@@ -40,6 +40,18 @@ class Config:
             or os.getenv("DEFAULT_GENERATION_CONTEXT")
             or ""
         ).strip()
+        self.mcp_gemini_enabled = self._get_bool_setting("MCP_GEMINI_ENABLED", True)
+        self.mcp_gemini_auth_mode = (
+            self._get_runtime_setting("MCP_GEMINI_AUTH_MODE") or "session_cookie"
+        ).strip().lower()
+        self.mcp_gemini_session_psid = self._get_runtime_setting("MCP_GEMINI_SESSION_PSID")
+        self.mcp_gemini_session_psidts = self._get_runtime_setting("MCP_GEMINI_SESSION_PSIDTS")
+        self.mcp_gemini_oauth_token = self._get_runtime_setting("MCP_GEMINI_OAUTH_TOKEN")
+        self.mcp_external_server_url = self._get_runtime_setting("MCP_EXTERNAL_SERVER_URL")
+        self.mcp_external_auth_token = self._get_runtime_setting("MCP_EXTERNAL_AUTH_TOKEN")
+        self.mcp_flow_enabled = self._get_bool_setting("MCP_FLOW_ENABLED", True)
+        self.mcp_flow_auth_token = self._get_runtime_setting("MCP_FLOW_AUTH_TOKEN")
+        self.mcp_flow_project_id = self._get_runtime_setting("MCP_FLOW_PROJECT_ID")
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
         # Optional separate model for the cross-window candidate rerank pass.
         self.rerank_llm = self._get_runtime_setting("RERANK_LLM") or self.llm
@@ -273,7 +285,29 @@ class Config:
             "MAX_CLIPS": str(self.max_clips),
             "ANALYSIS_TOTAL_TIMEOUT_SECONDS": str(self.analysis_total_timeout_seconds),
             "DEFAULT_GENERATION_CONTEXT": self.default_generation_context,
+            "MCP_GEMINI_ENABLED": "true" if self.mcp_gemini_enabled else "false",
+            "MCP_GEMINI_AUTH_MODE": self.mcp_gemini_auth_mode,
+            "MCP_GEMINI_SESSION_PSID": self.mcp_gemini_session_psid,
+            "MCP_GEMINI_SESSION_PSIDTS": self.mcp_gemini_session_psidts,
+            "MCP_GEMINI_OAUTH_TOKEN": self.mcp_gemini_oauth_token,
+            "MCP_EXTERNAL_SERVER_URL": self.mcp_external_server_url,
+            "MCP_EXTERNAL_AUTH_TOKEN": self.mcp_external_auth_token,
+            "MCP_FLOW_ENABLED": "true" if self.mcp_flow_enabled else "false",
+            "MCP_FLOW_AUTH_TOKEN": self.mcp_flow_auth_token,
+            "MCP_FLOW_PROJECT_ID": self.mcp_flow_project_id,
         }
+
+    @classmethod
+    def _get_bool_setting(cls, name: str, default: bool) -> bool:
+        value = cls._get_runtime_setting(name)
+        if value is None:
+            return default
+        normalized = str(value).strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        return default
 
     @staticmethod
     def _get_bool_env(name: str, default: bool) -> bool:

@@ -251,10 +251,10 @@ export default function ListPage() {
       targetTaskIds,
       (taskId) => fetch(`/api/tasks/${taskId}/cancel`, { method: "POST" }),
       {
-        empty: "No active generations in selection to cancel.",
-        fallback: "Failed to cancel generation",
-        success: (count) => `${count} generation${count === 1 ? "" : "s"} cancelled.`,
-        partial: (s, f, err) => `${s} cancelled, ${f} failed. ${err}`,
+        empty: "Nenhuma geração ativa selecionada para cancelar.",
+        fallback: "Falha ao cancelar geração",
+        success: (count) => `${count} ${count === 1 ? "geração cancelada" : "gerações canceladas"}.`,
+        partial: (s, f, err) => `${s} cancelada(s), ${f} falhou(aram). ${err}`,
       },
     );
   };
@@ -269,10 +269,10 @@ export default function ListPage() {
       targetTaskIds,
       (taskId) => fetch(`/api/tasks/${taskId}/resume`, { method: "POST" }),
       {
-        empty: "No failed or cancelled generations in selection to resume.",
-        fallback: "Failed to resume generation",
-        success: (count) => `${count} generation${count === 1 ? "" : "s"} resumed.`,
-        partial: (s, f, err) => `${s} resumed, ${f} failed. ${err}`,
+        empty: "Nenhuma geração com falha ou cancelada selecionada para retomar.",
+        fallback: "Falha ao retomar geração",
+        success: (count) => `${count} ${count === 1 ? "geração retomada" : "gerações retomadas"}.`,
+        partial: (s, f, err) => `${s} retomada(s), ${f} falhou(aram). ${err}`,
       },
     );
   };
@@ -285,10 +285,10 @@ export default function ListPage() {
       targetTaskIds,
       (taskId) => fetch(`/api/tasks/${taskId}`, { method: "DELETE" }),
       {
-        empty: "Select at least one generation to delete.",
-        fallback: "Failed to delete generation",
-        success: (count) => `${count} generation${count === 1 ? "" : "s"} deleted.`,
-        partial: (s, f, err) => `${s} deleted, ${f} failed. ${err}`,
+        empty: "Selecione pelo menos uma geração para excluir.",
+        fallback: "Falha ao excluir geração",
+        success: (count) => `${count} ${count === 1 ? "geração excluída" : "gerações excluídas"}.`,
+        partial: (s, f, err) => `${s} excluída(s), ${f} falhou(aram). ${err}`,
       },
     );
 
@@ -303,12 +303,12 @@ export default function ListPage() {
     return (
       <div className="min-h-screen bg-white">
         <div className="max-w-4xl mx-auto px-4 py-24 text-center">
-          <h1 className="text-3xl font-bold text-black mb-4">Sign In Required</h1>
+          <h1 className="text-3xl font-bold text-black mb-4">Login obrigatório</h1>
           <p className="text-gray-600 mb-8">
-            You need to be signed in to view your generations.
+            Você precisa entrar na sua conta para ver suas gerações.
           </p>
           <Link href="/sign-in">
-            <Button size="lg">Sign In</Button>
+            <Button size="lg">Entrar</Button>
           </Link>
         </div>
       </div>
@@ -326,10 +326,10 @@ export default function ListPage() {
     return true;
   });
   const filters: { id: typeof filter; label: string; count: number }[] = [
-    { id: "all", label: "All", count: tasks.length },
-    { id: "ready", label: "Ready", count: completedCount },
-    { id: "active", label: "In progress", count: activeCount },
-    { id: "attention", label: "Needs attention", count: attentionCount },
+    { id: "all", label: "Todos", count: tasks.length },
+    { id: "ready", label: "Concluídos", count: completedCount },
+    { id: "active", label: "Em andamento", count: activeCount },
+    { id: "attention", label: "Requer atenção", count: attentionCount },
   ];
 
   const renderGenerationGrid = (items: Task[]) => (
@@ -351,9 +351,9 @@ export default function ListPage() {
     <main className={cn("mx-auto w-full max-w-7xl px-4 py-8 sm:px-8 md:py-10", selectedCount > 0 && "pb-32")}>
       <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight">Library</h1>
+          <h1 className="font-display text-3xl font-bold tracking-tight">Biblioteca</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {tasks.length} {tasks.length === 1 ? "generation" : "generations"} · hover to preview, select to batch-manage
+            {tasks.length} {tasks.length === 1 ? "geração" : "gerações"} · passe o mouse para pré-visualizar, selecione para ações em lote
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -363,21 +363,21 @@ export default function ListPage() {
               ref={searchRef}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by title"
-              aria-label="Search generations"
+              placeholder="Buscar por título"
+              aria-label="Buscar gerações"
               className="h-9 rounded-lg bg-background pl-9 pr-8"
             />
             <Kbd className="absolute right-2 top-1/2 -translate-y-1/2">/</Kbd>
           </div>
           <Button asChild size="sm" className="h-9 rounded-lg">
-            <Link href="/"><Plus className="size-4" /><span className="hidden sm:inline">New</span></Link>
+            <Link href="/"><Plus className="size-4" /><span className="hidden sm:inline">Nova</span></Link>
           </Button>
         </div>
       </div>
 
       {!isLoading && !error && tasks.length > 0 && (
         <div className="scrollbar-none -mx-4 mt-6 flex items-center gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-          <div className="flex shrink-0 items-center gap-1.5" role="tablist" aria-label="Filter generations">
+          <div className="flex shrink-0 items-center gap-1.5" role="tablist" aria-label="Filtrar gerações">
             {filters.map((item) => (
               <button
                 key={item.id}
@@ -395,8 +395,8 @@ export default function ListPage() {
               </button>
             ))}
           </div>
-          <div className="ml-auto inline-flex shrink-0 rounded-lg border bg-background p-0.5" role="tablist" aria-label="Sort generations">
-            {([["newest", "Newest"], ["video", "By video"]] as const).map(([value, label]) => (
+          <div className="ml-auto inline-flex shrink-0 rounded-lg border bg-background p-0.5" role="tablist" aria-label="Ordenar gerações">
+            {([["newest", "Mais recentes"], ["video", "Por vídeo"]] as const).map(([value, label]) => (
               <button
                 key={value}
                 type="button"
@@ -418,10 +418,10 @@ export default function ListPage() {
               checked={allVisibleSelected ? true : someSelected ? "indeterminate" : false}
               onCheckedChange={handleToggleAllVisible}
               disabled={activeBatchAction !== null}
-              aria-label="Select all generations"
+              aria-label="Selecionar todas as gerações"
             />
             <label htmlFor="select-all" className="text-xs text-muted-foreground">
-              {selectedCount > 0 ? `${selectedCount} of ${tasks.length} selected` : "Select all"}
+              {selectedCount > 0 ? `${selectedCount} de ${tasks.length} selecionada(s)` : "Selecionar tudo"}
             </label>
           </div>
         </div>
@@ -447,13 +447,13 @@ export default function ListPage() {
         ) : tasks.length === 0 ? (
           <div className="flex flex-col items-center rounded-2xl border border-dashed px-6 py-20 text-center">
             <span className="flex size-14 items-center justify-center rounded-2xl bg-muted"><PlayCircle className="size-7 text-muted-foreground" /></span>
-            <h2 className="mt-4 text-lg font-semibold">No generations yet</h2>
-            <p className="mt-1 max-w-sm text-sm text-muted-foreground">Paste a YouTube link or upload a video and your clips will land here.</p>
-            <Button asChild className="mt-6"><Link href="/">Create New Generation</Link></Button>
+            <h2 className="mt-4 text-lg font-semibold">Nenhuma geração ainda</h2>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">Cole um link do YouTube ou envie um vídeo e seus cortes aparecerão aqui.</p>
+            <Button asChild className="mt-6"><Link href="/">Criar Nova Geração</Link></Button>
           </div>
         ) : visibleTasks.length === 0 ? (
           <p className="rounded-2xl border border-dashed px-6 py-16 text-center text-sm text-muted-foreground">
-            Nothing matches{query ? ` “${search.trim()}”` : " this filter"}.
+            Nenhum resultado encontrado{query ? ` para “${search.trim()}”` : " neste filtro"}.
           </p>
         ) : sort === "video" ? (
           <div className="space-y-8">
@@ -485,13 +485,13 @@ export default function ListPage() {
                 checked={allVisibleSelected ? true : someSelected ? "indeterminate" : false}
                 onCheckedChange={handleToggleAllVisible}
                 disabled={activeBatchAction !== null}
-                aria-label="Select all"
+                aria-label="Selecionar tudo"
                 className="border-stone-600 data-[state=checked]:bg-white data-[state=checked]:text-stone-950 data-[state=checked]:border-white data-[state=indeterminate]:bg-stone-500 data-[state=indeterminate]:border-stone-500"
               />
               <span className="text-sm font-medium text-white tabular-nums">
                 {selectedCount}
                 <span className="text-stone-400 ml-0.5">
-                  {" "}selected
+                  {" "}selecionada(s)
                 </span>
               </span>
             </div>
@@ -514,14 +514,14 @@ export default function ListPage() {
                     ) : (
                       <PauseCircle className="w-4 h-4" />
                     )}
-                    <span className="hidden sm:inline">Cancel</span>
+                    <span className="hidden sm:inline">Cancelar</span>
                     {cancelableCount > 0 && (
                       <span className="text-xs text-stone-500">{cancelableCount}</span>
                     )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={8}>
-                  Cancel {cancelableCount} active generation{cancelableCount === 1 ? "" : "s"}
+                  Cancelar {cancelableCount} {cancelableCount === 1 ? "geração ativa" : "gerações ativas"}
                 </TooltipContent>
               </Tooltip>
 
@@ -539,14 +539,14 @@ export default function ListPage() {
                     ) : (
                       <RotateCcw className="w-4 h-4" />
                     )}
-                    <span className="hidden sm:inline">Resume</span>
+                    <span className="hidden sm:inline">Retomar</span>
                     {resumableCount > 0 && (
                       <span className="text-xs text-stone-500">{resumableCount}</span>
                     )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={8}>
-                  Resume {resumableCount} failed/cancelled generation{resumableCount === 1 ? "" : "s"}
+                  Retomar {resumableCount} {resumableCount === 1 ? "geração com falha/cancelada" : "gerações com falha/canceladas"}
                 </TooltipContent>
               </Tooltip>
 
@@ -566,11 +566,11 @@ export default function ListPage() {
                     ) : (
                       <Trash2 className="w-4 h-4" />
                     )}
-                    <span className="hidden sm:inline">Delete</span>
+                    <span className="hidden sm:inline">Excluir</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={8}>
-                  Delete {selectedCount} generation{selectedCount === 1 ? "" : "s"}
+                  Excluir {selectedCount} {selectedCount === 1 ? "geração" : "gerações"}
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -589,13 +589,13 @@ export default function ListPage() {
                   }}
                   disabled={activeBatchAction !== null}
                   className="text-stone-400 hover:text-white hover:bg-stone-800 rounded-xl"
-                  aria-label="Clear selection"
+                  aria-label="Limpar seleção"
                 >
                   <X className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={8}>
-                Clear selection
+                Limpar seleção
               </TooltipContent>
             </Tooltip>
           </div>
@@ -606,14 +606,14 @@ export default function ListPage() {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedCount} generation{selectedCount === 1 ? "" : "s"}?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir {selectedCount} {selectedCount === 1 ? "geração" : "gerações"}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove {selectedCount === 1 ? "this generation" : "these generations"} and all
-              associated clips. This cannot be undone.
+              Isso removerá permanentemente {selectedCount === 1 ? "esta geração" : "estas gerações"} e todos os
+              cortes associados. Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={activeBatchAction === "delete"}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={activeBatchAction === "delete"}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => void handleDeleteSelected()}
               disabled={activeBatchAction === "delete" || selectedCount === 0}
@@ -622,10 +622,10 @@ export default function ListPage() {
               {activeBatchAction === "delete" ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Deleting...
+                  Excluindo...
                 </>
               ) : (
-                "Delete"
+                "Excluir"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

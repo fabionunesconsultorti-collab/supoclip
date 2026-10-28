@@ -188,3 +188,40 @@ async def test_generate_thumbnail_titles_fallback():
     assert len(titles) >= 1
     assert isinstance(titles[0], str)
     assert len(titles[0]) > 0
+
+
+def test_mcp_gemini_pro_provider_validation(monkeypatch):
+    from src.ai import _build_transcript_model, _get_missing_llm_key_error
+    from src.config import Config
+
+    monkeypatch.setenv("MCP_GEMINI_ENABLED", "true")
+    monkeypatch.setenv("MCP_GEMINI_AUTH_MODE", "session_cookie")
+    monkeypatch.setenv("MCP_GEMINI_SESSION_PSID", "test-psid-cookie")
+    cfg = Config()
+
+    assert _get_missing_llm_key_error("mcp:gemini-pro", cfg) is None
+    model = _build_transcript_model(cfg, "mcp:gemini-pro")
+    assert model is not None
+
+
+async def test_mcp_bridge_status_and_flow_image(monkeypatch):
+    from src.config import Config
+    from src.mcp_bridge import MCPBridgeClient, extract_json_object
+
+    monkeypatch.setenv("MCP_GEMINI_ENABLED", "true")
+    monkeypatch.setenv("MCP_GEMINI_AUTH_MODE", "session_cookie")
+    monkeypatch.setenv("MCP_GEMINI_SESSION_PSID", "dummy-psid")
+    monkeypatch.setenv("LLM", "mcp:gemini-pro")
+    cfg = Config()
+    bridge = MCPBridgeClient(cfg)
+
+    status = bridge.get_status_summary()
+    assert status["gemini"]["configured"] is True
+    assert status["is_mcp_active_llm"] is True
+    assert len(status["tools"]) == 4
+
+    extracted = extract_json_object("Aqui está:\n```json\n{\"ok\": true}\n```")
+    assert extracted == '{"ok": true}'
+
+    flow_img = await bridge.generate_flow_image("Podcast studio neon")
+    assert flow_img["data_url"].startswith("data:image/")

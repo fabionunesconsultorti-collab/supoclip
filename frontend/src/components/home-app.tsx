@@ -46,10 +46,10 @@ interface CaptionTemplate {
 type OutputFormat = "vertical" | "vertical_pan" | "vertical_split" | "original";
 
 const FRAMINGS: { id: OutputFormat; label: string; hint: string }[] = [
-  { id: "vertical", label: "Auto 9:16", hint: "Face-tracked vertical crop" },
-  { id: "vertical_pan", label: "Speaker pan", hint: "Follows whoever is talking" },
-  { id: "vertical_split", label: "Split-screen", hint: "Two speakers stacked" },
-  { id: "original", label: "Original", hint: "Keep the source aspect ratio" },
+  { id: "vertical", label: "Auto 9:16", hint: "Corte vertical com foco facial" },
+  { id: "vertical_pan", label: "Seguir voz", hint: "Acompanha quem está falando" },
+  { id: "vertical_split", label: "Tela dividida", hint: "Dois participantes empilhados" },
+  { id: "original", label: "Original", hint: "Mantém a proporção original" },
 ];
 
 const COLOR_SWATCHES = ["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"];
@@ -142,7 +142,7 @@ export default function HomeApp() {
       document.head.appendChild(styleElement);
     } catch (error) {
       console.error("Failed to load fonts:", error);
-      setFontLoadError("Could not load fonts right now.");
+      setFontLoadError("Não foi possível carregar as fontes no momento.");
     }
   }, []);
 
@@ -164,7 +164,7 @@ export default function HomeApp() {
 
   const attachFile = (next: File | null) => {
     if (next && !next.type.startsWith("video/") && !/\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(next.name)) {
-      setError("That doesn't look like a video file. Try MP4, MOV, MKV or WebM.");
+      setError("Isso não parece ser um arquivo de vídeo. Tente MP4, MOV, MKV ou WebM.");
       return;
     }
     setError(null);
@@ -180,7 +180,7 @@ export default function HomeApp() {
 
     const lower = fontFile.name.toLowerCase();
     if (!lower.endsWith(".ttf") && !lower.endsWith(".otf")) {
-      setError("Only .ttf and .otf files are supported for custom fonts.");
+      setError("Apenas arquivos .ttf e .otf são suportados para fontes personalizadas.");
       return;
     }
 
@@ -191,7 +191,7 @@ export default function HomeApp() {
       formData.append("file", fontFile);
       const response = await fetch("/api/fonts/upload", { method: "POST", body: formData });
       if (!response.ok) {
-        setError(formatSupportMessage(await parseApiError(response, "Failed to upload font")));
+        setError(formatSupportMessage(await parseApiError(response, "Falha ao enviar fonte")));
         return;
       }
       const data = await response.json();
@@ -199,7 +199,7 @@ export default function HomeApp() {
       await refreshFonts();
     } catch (uploadError) {
       console.error("Failed to upload font:", uploadError);
-      setError("Failed to upload font. Please try again.");
+      setError("Falha ao enviar fonte. Tente novamente.");
     } finally {
       setIsUploadingFont(false);
     }
@@ -249,11 +249,11 @@ export default function HomeApp() {
       const normalizedFilteredWords = filteredWords.split(",").map((word) => word.trim().toLowerCase()).filter(Boolean);
 
       if (sourceType === "upload" && file) {
-        setStatusMessage("Uploading video…");
+        setStatusMessage("Enviando vídeo…");
         videoUrl = await uploadVideoFile(file);
       }
 
-      setStatusMessage(sourceType === "youtube" ? "Checking video length…" : "Starting generation…");
+      setStatusMessage(sourceType === "youtube" ? "Verificando duração do vídeo…" : "Iniciando geração…");
       const startResponse = await fetch("/api/tasks/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -300,7 +300,7 @@ export default function HomeApp() {
       window.location.href = `/tasks/${startResult.task_id}`;
     } catch (error) {
       console.error("Error processing video:", error);
-      setError(error instanceof Error ? error.message : "Failed to process video. Please try again.");
+      setError(error instanceof Error ? error.message : "Falha ao processar o vídeo. Tente novamente.");
       setIsLoading(false);
       setStatusMessage("");
     }
@@ -318,7 +318,7 @@ export default function HomeApp() {
   }
 
   const limitNote = billingSummary?.max_youtube_duration_seconds
-    ? `${formatBillingPlanName(billingSummary.plan)}: YouTube videos up to ${billingSummary.max_youtube_duration_seconds / 60} minutes. We check the length before using a generation.`
+    ? `${formatBillingPlanName(billingSummary.plan)}: vídeos do YouTube de até ${billingSummary.max_youtube_duration_seconds / 60} minutos. Verificamos a duração antes de usar uma geração.`
     : null;
 
   return (
@@ -337,7 +337,7 @@ export default function HomeApp() {
             {greeting(session.user.name)}
           </h1>
           <p className="mt-2 text-center text-muted-foreground">
-            Drop in a long video. Get back captioned, ready-to-post clips.
+            Envie um vídeo longo e receba cortes legendados prontos para publicar.
           </p>
 
           {upgradeState && <PlanStatusNudge state={upgradeState} onUpgrade={openUpgrade} />}
@@ -370,7 +370,7 @@ export default function HomeApp() {
 
             {isDragging && (
               <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl bg-background/95 text-sm font-medium">
-                <Upload className="size-6 text-brand" />Drop to upload your video
+                <Upload className="size-6 text-brand" />Solte para enviar seu vídeo
               </div>
             )}
 
@@ -380,9 +380,9 @@ export default function HomeApp() {
                   <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-foreground text-background"><FileVideo className="size-5" /></span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">{formatBytes(file.size)} · ready to upload</p>
+                    <p className="text-xs text-muted-foreground">{formatBytes(file.size)} · pronto para envio</p>
                   </div>
-                  <button type="button" onClick={() => attachFile(null)} disabled={isLoading} aria-label="Remove file" className="rounded-md p-1 text-muted-foreground hover:bg-background hover:text-foreground">
+                  <button type="button" onClick={() => attachFile(null)} disabled={isLoading} aria-label="Remover arquivo" className="rounded-md p-1 text-muted-foreground hover:bg-background hover:text-foreground">
                     <X className="size-4" />
                   </button>
                 </div>
@@ -395,14 +395,14 @@ export default function HomeApp() {
                     <span className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground"><Youtube className="size-5" /></span>
                   )}
                   <div className="min-w-0 flex-1">
-                    <label htmlFor="youtube-url" className="sr-only">YouTube URL</label>
+                    <label htmlFor="youtube-url" className="sr-only">Link do YouTube</label>
                     <input
                       id="youtube-url"
                       ref={urlInputRef}
                       type="url"
                       autoFocus
                       autoComplete="off"
-                      placeholder="Paste a YouTube link, or drop a video file"
+                      placeholder="Cole um link do YouTube ou arraste um vídeo aqui"
                       aria-describedby={limitNote ? "youtube-duration-limit" : undefined}
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
@@ -417,24 +417,24 @@ export default function HomeApp() {
 
             <div className="flex flex-wrap items-center gap-1.5 px-3 pb-3 sm:px-4">
               {!file && (
-                <Chip onClick={() => fileInputRef.current?.click()} disabled={controlsDisabled} aria-label="Upload a video file">
-                  <Paperclip className="size-3.5" /><span className="hidden sm:inline">Upload</span>
+                <Chip onClick={() => fileInputRef.current?.click()} disabled={controlsDisabled} aria-label="Enviar arquivo de vídeo">
+                  <Paperclip className="size-3.5" /><span className="hidden sm:inline">Arquivo</span>
                 </Chip>
               )}
 
               <Popover>
                 <PopoverTrigger asChild>
                   <Chip disabled={controlsDisabled || !addSubtitles} active={customized}>
-                    <Paintbrush className="size-3.5" />{selectedTemplate?.name || "Default"}<ChevronDown className="size-3 opacity-60" />
+                    <Paintbrush className="size-3.5" />{selectedTemplate?.name || "Padrão"}<ChevronDown className="size-3 opacity-60" />
                   </Chip>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-[min(92vw,560px)] rounded-2xl p-0">
                   <div className="grid gap-0 sm:grid-cols-[minmax(0,1fr)_180px]">
                     <div className="max-h-[420px] min-w-0 space-y-4 overflow-y-auto p-4">
                       <div>
-                        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Caption style</p>
-                        <div className="flex flex-col gap-1" role="radiogroup" aria-label="Caption style">
-                          {(availableTemplates.length ? availableTemplates : [{ id: "default", name: "Default", description: "Word-by-word captions", animation: "" } as CaptionTemplate]).map((template) => (
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Estilo da legenda</p>
+                        <div className="flex flex-col gap-1" role="radiogroup" aria-label="Estilo da legenda">
+                          {(availableTemplates.length ? availableTemplates : [{ id: "default", name: "Padrão", description: "Legendas palavra por palavra", animation: "" } as CaptionTemplate]).map((template) => (
                             <button
                               key={template.id}
                               type="button"
@@ -456,53 +456,53 @@ export default function HomeApp() {
 
                       <div className="space-y-3 border-t pt-4">
                         <div className="flex items-center justify-between">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Customize</p>
+                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Personalizar</p>
                           {customized && (
                             <button type="button" className="text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => { setFontFamily(null); setFontSize(null); setFontColor(null); }}>
-                              Reset to template
+                              Restaurar padrão do modelo
                             </button>
                           )}
                         </div>
                         <div className="space-y-2">
                           <div className="flex items-center justify-between gap-2">
-                            <label className="text-sm">Font</label>
+                            <label className="text-sm">Fonte</label>
                             <input ref={fontUploadInputRef} type="file" accept=".ttf,.otf" onChange={handleFontUpload} className="hidden" />
                             <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" disabled={controlsDisabled || isUploadingFont} onClick={() => canUploadCustomFonts ? fontUploadInputRef.current?.click() : openUpgrade({ kind: "custom_fonts" })}>
-                              <Upload className="size-3" />{isUploadingFont ? "Uploading…" : "Upload font"}
+                              <Upload className="size-3" />{isUploadingFont ? "Enviando…" : "Enviar fonte"}
                             </Button>
                           </div>
                           {!canUploadCustomFonts && (
                             <button type="button" onClick={() => openUpgrade({ kind: "custom_fonts" })} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
-                              Use your own fonts with a paid plan
+                              Use suas próprias fontes em um plano pago
                             </button>
                           )}
                           {availableFonts.length > FONT_SEARCH_THRESHOLD && (
-                            <Input value={fontSearch} onChange={(e) => setFontSearch(e.target.value)} placeholder="Search fonts" className="h-8" />
+                            <Input value={fontSearch} onChange={(e) => setFontSearch(e.target.value)} placeholder="Buscar fontes" className="h-8" />
                           )}
                           <Select value={fontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE} onValueChange={(value) => setFontFamily(value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)}>
-                            <SelectTrigger className="w-full"><SelectValue placeholder="Template default" /></SelectTrigger>
+                            <SelectTrigger className="w-full"><SelectValue placeholder="Padrão do modelo" /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
+                              <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Padrão do modelo</SelectItem>
                               {filteredFonts.map((font) => (
                                 <FontSelectOption key={font.name} font={font} />
                               ))}
-                              {availableFonts.length > 0 && filteredFonts.length === 0 && <SelectItem value="__no_match__" disabled>No fonts match your search</SelectItem>}
+                              {availableFonts.length > 0 && filteredFonts.length === 0 && <SelectItem value="__no_match__" disabled>Nenhuma fonte encontrada</SelectItem>}
                             </SelectContent>
                           </Select>
                           {fontLoadError && <p className="text-xs text-amber-700">{fontLoadError}</p>}
                         </div>
                         <CaptionSizeControl value={fontSize} onChange={setFontSize} disabled={controlsDisabled} />
                         <div className="space-y-2">
-                          <p className="text-sm">Color</p>
+                          <p className="text-sm">Cor</p>
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <button type="button" onClick={() => setFontColor(null)} className={cn("h-7 rounded-full border px-2.5 text-xs", fontColor === null ? "border-foreground bg-foreground text-background" : "hover:bg-accent")}>Template</button>
+                            <button type="button" onClick={() => setFontColor(null)} className={cn("h-7 rounded-full border px-2.5 text-xs", fontColor === null ? "border-foreground bg-foreground text-background" : "hover:bg-accent")}>Modelo</button>
                             {COLOR_SWATCHES.map((color) => (
-                              <button key={color} type="button" onClick={() => setFontColor(color)} title={color} aria-label={`Caption color ${color}`}
+                              <button key={color} type="button" onClick={() => setFontColor(color)} title={color} aria-label={`Cor da legenda ${color}`}
                                 className={cn("size-7 rounded-full border-2 transition-transform hover:scale-110", fontColor === color ? "border-foreground" : "border-border")}
                                 style={{ backgroundColor: color }} />
                             ))}
-                            <label className="relative size-7 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-border" title="Custom color">
-                              <input type="color" value={fontColor ?? "#FFFFFF"} onChange={(e) => setFontColor(e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Custom caption color" />
+                            <label className="relative size-7 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-border" title="Cor personalizada">
+                              <input type="color" value={fontColor ?? "#FFFFFF"} onChange={(e) => setFontColor(e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Cor personalizada da legenda" />
                               <span className="absolute inset-1 rounded-full bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]" />
                             </label>
                           </div>
@@ -517,7 +517,7 @@ export default function HomeApp() {
                         fontSize={previewFontSize}
                         color={previewFontColor}
                       />
-                      <p className="mt-3 text-center text-[11px] text-muted-foreground">Live preview</p>
+                      <p className="mt-3 text-center text-[11px] text-muted-foreground">Pré-visualização</p>
                     </div>
                   </div>
                 </PopoverContent>
@@ -530,8 +530,8 @@ export default function HomeApp() {
                   </Chip>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-[min(92vw,420px)] rounded-2xl p-3">
-                  <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">Framing</p>
-                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Framing">
+                  <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">Enquadramento</p>
+                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Enquadramento">
                     {FRAMINGS.map((framing) => (
                       <button
                         key={framing.id}
@@ -552,42 +552,42 @@ export default function HomeApp() {
 
               <Chip onClick={() => setAddSubtitles((value) => !value)} disabled={controlsDisabled} aria-pressed={addSubtitles} active={!addSubtitles}>
                 {addSubtitles ? <Captions className="size-3.5" /> : <CaptionsOff className="size-3.5" />}
-                {addSubtitles ? "Captions" : "No captions"}
+                {addSubtitles ? "Legendas" : "Sem legendas"}
               </Chip>
 
               <Popover>
                 <PopoverTrigger asChild>
                   <Chip disabled={controlsDisabled} active={cleanupCount > 0}>
-                    <Wand2 className="size-3.5" />Cleanup{cleanupCount > 0 && <span className="rounded-full bg-foreground px-1.5 text-[10px] text-background">{cleanupCount}</span>}
+                    <Wand2 className="size-3.5" />Limpeza{cleanupCount > 0 && <span className="rounded-full bg-foreground px-1.5 text-[10px] text-background">{cleanupCount}</span>}
                     <ChevronDown className="size-3 opacity-60" />
                   </Chip>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-[min(92vw,340px)] space-y-4 rounded-2xl">
                   <div>
-                    <p className="text-sm font-medium">Clip cleanup</p>
-                    <p className="text-xs text-muted-foreground">Tighten dead air and cut filler sounds while rendering.</p>
+                    <p className="text-sm font-medium">Limpeza do corte</p>
+                    <p className="text-xs text-muted-foreground">Reduza silêncios longos e remova vícios de linguagem ao renderizar.</p>
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <label htmlFor="cut-pauses" className="text-sm font-medium">Shorten long pauses</label>
-                      <p className="text-xs text-muted-foreground">Trim silences longer than this down to a short breath</p>
+                      <label htmlFor="cut-pauses" className="text-sm font-medium">Encurtar pausas longas</label>
+                      <p className="text-xs text-muted-foreground">Corta silêncios maiores que este limite</p>
                     </div>
                     <Switch id="cut-pauses" checked={cutLongPauses} onCheckedChange={setCutLongPauses} />
                   </div>
                   <div className="flex items-center gap-2">
-                    <Input type="number" min={250} max={3000} step={50} value={pauseThresholdMs} onChange={(e) => setPauseThresholdMs(e.target.value)} disabled={!cutLongPauses} aria-label="Pause threshold (ms)" className="h-8 w-24" />
-                    <span className="text-xs text-muted-foreground">milliseconds</span>
+                    <Input type="number" min={250} max={3000} step={50} value={pauseThresholdMs} onChange={(e) => setPauseThresholdMs(e.target.value)} disabled={!cutLongPauses} aria-label="Limite de pausa (ms)" className="h-8 w-24" />
+                    <span className="text-xs text-muted-foreground">milissegundos</span>
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <label htmlFor="filler-words" className="text-sm font-medium">Remove filler words</label>
-                      <p className="text-xs text-muted-foreground">“um”, “uh”, “erm” and similar sounds</p>
+                      <label htmlFor="filler-words" className="text-sm font-medium">Remover vícios de linguagem</label>
+                      <p className="text-xs text-muted-foreground">“hm”, “éé”, “tipo” e sons de hesitação</p>
                     </div>
                     <Switch id="filler-words" checked={removeFillerWords} onCheckedChange={setRemoveFillerWords} />
                   </div>
                   <div className="space-y-1.5">
-                    <label htmlFor="filtered-words" className="text-xs font-medium text-muted-foreground">Extra words or phrases to cut</label>
-                    <Input id="filtered-words" value={filteredWords} onChange={(e) => setFilteredWords(e.target.value)} placeholder="basically, literally, to be honest" className="h-8" />
+                    <label htmlFor="filtered-words" className="text-xs font-medium text-muted-foreground">Palavras ou frases extras para cortar</label>
+                    <Input id="filtered-words" value={filteredWords} onChange={(e) => setFilteredWords(e.target.value)} placeholder="basicamente, literalmente, na verdade" className="h-8" />
                   </div>
                 </PopoverContent>
               </Popover>
@@ -681,12 +681,12 @@ export default function HomeApp() {
 
               <div className="ml-auto flex items-center gap-2">
                 <span className="hidden text-xs text-muted-foreground sm:inline-flex sm:items-center sm:gap-1">
-                  {isLoading ? <span role="status">{statusMessage || "Working…"}</span> : hasSource ? <><Kbd>⌘</Kbd><Kbd>↵</Kbd></> : null}
+                  {isLoading ? <span role="status">{statusMessage || "Processando…"}</span> : hasSource ? <><Kbd>⌘</Kbd><Kbd>↵</Kbd></> : null}
                 </span>
                 <Button
                   type="submit"
                   size="icon"
-                  aria-label="Generate clips"
+                  aria-label="Gerar cortes"
                   disabled={!hasSource || isLoading}
                   className="size-9 rounded-full bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
                 >
@@ -707,17 +707,17 @@ export default function HomeApp() {
 
           <p id="youtube-duration-limit" className="mt-4 text-center text-xs text-muted-foreground">
             {limitNote ? `${limitNote} ` : ""}
-            Completion emails follow your preference in{" "}
-            <Link href="/settings" className="font-medium text-foreground underline-offset-2 hover:underline">Settings</Link>.
+            Os e-mails de conclusão seguem sua preferência em{" "}
+            <Link href="/settings" className="font-medium text-foreground underline-offset-2 hover:underline">Configurações</Link>.
           </p>
         </div>
 
         <section className="mt-16 md:mt-24" aria-labelledby="recent-heading">
           <div className="mb-4 flex items-end justify-between">
-            <h2 id="recent-heading" className="font-display text-lg font-bold tracking-tight">Recent</h2>
+            <h2 id="recent-heading" className="font-display text-lg font-bold tracking-tight">Gerações Recentes</h2>
             {recent && recent.length > 0 && (
               <Link href="/list" className="group flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-                View library<ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                Ver biblioteca<ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
               </Link>
             )}
           </div>
@@ -727,7 +727,7 @@ export default function HomeApp() {
             </div>
           ) : recent.length === 0 ? (
             <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-              Your clips will show up here. Paste a link above to make your first batch.
+              Seus cortes aparecerão aqui. Cole um link acima para criar sua primeira geração.
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
@@ -772,7 +772,7 @@ function CaptionPreview({ thumbnail, fontFamily, fontSize, color }: { thumbnail:
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,oklch(0.55_0.05_50),oklch(0.22_0.01_50))]" />
       )}
       <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black/40 to-transparent" />
-      <p className="absolute inset-x-2 top-[10%] text-center text-[10px] font-bold leading-tight text-white drop-shadow">Your hook title lands here</p>
+      <p className="absolute inset-x-2 top-[10%] text-center text-[10px] font-bold leading-tight text-white drop-shadow">Seu título gancho fica aqui</p>
       <p
         className="absolute inset-x-2 top-[72%] text-center font-bold leading-snug"
         style={{
@@ -782,7 +782,7 @@ function CaptionPreview({ thumbnail, fontFamily, fontSize, color }: { thumbnail:
           textShadow: "0 2px 6px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.9)",
         }}
       >
-        This is how your captions look
+        É assim que sua legenda aparece
       </p>
     </div>
   );

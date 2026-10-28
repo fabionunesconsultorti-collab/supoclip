@@ -10,7 +10,9 @@ export type RuntimeSetting = {
   key: string;
   label: string;
   description: string;
-  input_type: "password" | "text";
+  input_type: "password" | "text" | "number";
+  /** Effective value in use (only for non-secret settings). */
+  value?: string | null;
   source: "environment" | "admin" | "unset";
   configured: boolean;
   has_admin_value: boolean;

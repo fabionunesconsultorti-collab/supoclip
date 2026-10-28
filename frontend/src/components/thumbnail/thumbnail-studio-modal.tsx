@@ -106,6 +106,8 @@ export function ThumbnailStudioModal({
 
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [isLoadingAi, setIsLoadingAi] = useState(false);
+  const [isGeneratingFlowBg, setIsGeneratingFlowBg] = useState(false);
+  const [flowBgImage, setFlowBgImage] = useState<HTMLImageElement | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [hasCopied, setHasCopied] = useState(false);
 
@@ -119,6 +121,7 @@ export function ThumbnailStudioModal({
       setDuration(Math.max(1, clip.duration || 10));
       setCurrentTime(1.0);
       setAiSuggestions([]);
+      setFlowBgImage(null);
     }
   }, [clip]);
 
@@ -160,8 +163,10 @@ export function ThumbnailStudioModal({
     // Clear
     ctx.clearRect(0, 0, width, height);
 
-    // 1. Draw video frame (aspect-fill)
-    if (video && video.readyState >= 2) {
+    // 1. Draw AI Flow background image if active, otherwise draw video frame (aspect-fill)
+    if (flowBgImage) {
+      ctx.drawImage(flowBgImage, 0, 0, width, height);
+    } else if (video && video.readyState >= 2) {
       const vWidth = video.videoWidth || 1080;
       const vHeight = video.videoHeight || 1920;
       const vRatio = vWidth / vHeight;
@@ -295,7 +300,7 @@ export function ThumbnailStudioModal({
         ctx.fillText(line, width / 2, lineY);
       });
     }
-  }, [aspectRatio, title, preset, textPosition, fontSizeRatio, overlayDarkness]);
+  }, [aspectRatio, title, preset, textPosition, fontSizeRatio, overlayDarkness, flowBgImage]);
 
   // Redraw when video frame changes or on load
   const handleVideoSeeked = () => {
@@ -336,6 +341,41 @@ export function ThumbnailStudioModal({
       toast.error(err.message || "Erro ao gerar títulos com IA");
     } finally {
       setIsLoadingAi(false);
+    }
+  };
+
+  // Generate AI Background via Google Flow MCP
+  const handleGenerateFlowBg = async () => {
+    if (!clip) return;
+    setIsGeneratingFlowBg(true);
+    try {
+      const promptText = `${title || clip.hook_title || "Viral moment"} — ${(clip.text || "").slice(0, 220)}`;
+      const response = await fetch("/api/mcp/flow/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: promptText,
+          aspect_ratio: aspectRatio === "16:9" ? "IMAGE_ASPECT_RATIO_LANDSCAPE" : "IMAGE_ASPECT_RATIO_PORTRAIT",
+        }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.detail || "Falha ao gerar fundo com Google Flow.");
+      }
+      const data = await response.json();
+      if (data.data_url) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          setFlowBgImage(img);
+          toast.success(`Fundo gerado via Google Flow (${data.provider})!`);
+        };
+        img.src = data.data_url;
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao gerar fundo no Google Flow");
+    } finally {
+      setIsGeneratingFlowBg(false);
     }
   };
 
@@ -468,10 +508,39 @@ export function ThumbnailStudioModal({
           {/* Frame scrubber timeline */}
           <div className="w-full max-w-md mt-4 space-y-2 bg-stone-950/80 border border-stone-800/80 p-3 rounded-xl">
             <div className="flex items-center justify-between text-xs text-stone-400">
-              <span className="font-medium text-stone-200">Escolha o Frame Perfeito</span>
+              <span className="font-medium text-stone-200">Escolha o Frame ou Fundo IA (Flow)</span>
               <span className="font-mono tabular-nums">
                 {currentTime.toFixed(1)}s / {duration.toFixed(1)}s
               </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 pb-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isGeneratingFlowBg}
+                onClick={handleGenerateFlowBg}
+                className="h-7 text-xs bg-brand/15 border-brand/40 text-brand hover:bg-brand/25 flex-1"
+              >
+                {isGeneratingFlowBg ? (
+                  <Loader2 className="size-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <Sparkles className="size-3.5 mr-1.5" />
+                )}
+                Gerar Fundo no Google Flow (IA)
+              </Button>
+              {flowBgImage && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setFlowBgImage(null)}
+                  className="h-7 text-xs text-stone-300 hover:text-white"
+                >
+                  <RotateCcw className="size-3 mr-1" /> Usar Frame do Vídeo
+                </Button>
+              )}
             </div>
 
             <div className="flex items-center gap-2">

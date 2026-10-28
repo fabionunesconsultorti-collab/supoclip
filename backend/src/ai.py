@@ -23,6 +23,7 @@ from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from .config import Config, get_config
+from .mcp_bridge import MCPBridgeClient, resolve_mcp_bridge_base_url
 from .runtime_settings import apply_settings_to_process_env
 
 logger = logging.getLogger(__name__)
@@ -490,7 +491,7 @@ transcript_analysis_system_prompt = build_transcript_analysis_system_prompt()
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
 _transcript_agent_signature: Optional[tuple[str | None, ...]] = None
 
-SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "openrouter", "anthropic", "ollama"}
+SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "openrouter", "anthropic", "ollama", "mcp"}
 
 
 def _split_llm_name(model_name: str) -> tuple[str, str | None]:
@@ -508,14 +509,23 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     if provider not in SUPPORTED_LLM_PROVIDERS:
         return (
             f"Unsupported LLM provider '{provider}'. "
-            "Use google-gla:*, openai:*, openrouter:*, anthropic:*, or ollama:*."
+            "Use mcp:*, google-gla:*, openai:*, openrouter:*, anthropic:*, or ollama:*."
         )
 
     if not provider_model_name:
         return (
             "Selected LLM is missing a model name. "
-            "Use the format provider:model, for example ollama:gpt-oss:20b."
+            "Use the format provider:model, for example mcp:gemini-pro or ollama:gpt-oss:20b."
         )
+
+    if provider == "mcp":
+        bridge = MCPBridgeClient(runtime_config)
+        if not bridge.is_gemini_configured():
+            return (
+                "Selected LLM provider is MCP (Gemini Pro), but no MCP credentials are configured. "
+                "Configure your Gemini Pro account in Agentes & API or Geração."
+            )
+        return None
 
     if provider in {"google", "google-gla"} and not runtime_config.google_api_key:
         return (
@@ -574,6 +584,16 @@ def _build_transcript_model(
                 "max_tokens": 8192,
             },
         )
+    if provider == "mcp":
+        if not provider_model_name:
+            provider_model_name = "gemini-pro"
+        return OllamaModel(
+            provider_model_name,
+            provider=OllamaProvider(
+                base_url=resolve_mcp_bridge_base_url(),
+                api_key="mcp-bridge-internal",
+            ),
+        )
     if provider != "ollama":
         return model_name
 
@@ -606,6 +626,10 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
+        getattr(runtime_config, "mcp_gemini_auth_mode", None),
+        getattr(runtime_config, "mcp_gemini_session_psid", None),
+        getattr(runtime_config, "mcp_gemini_oauth_token", None),
+        getattr(runtime_config, "mcp_external_server_url", None),
         runtime_config.min_clip_duration,
         runtime_config.max_clip_duration,
         runtime_config.ideal_clip_min_duration,
@@ -689,6 +713,10 @@ def get_rerank_agent() -> Agent[None, CandidateRanking]:
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
+        getattr(runtime_config, "mcp_gemini_auth_mode", None),
+        getattr(runtime_config, "mcp_gemini_session_psid", None),
+        getattr(runtime_config, "mcp_gemini_oauth_token", None),
+        getattr(runtime_config, "mcp_external_server_url", None),
     )
     if _rerank_agent is None or _rerank_agent_signature != signature:
         apply_settings_to_process_env(runtime_config.as_runtime_settings())
@@ -745,6 +773,10 @@ def get_thumbnail_title_agent() -> Agent[None, ThumbnailTitleSuggestions]:
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
+        getattr(runtime_config, "mcp_gemini_auth_mode", None),
+        getattr(runtime_config, "mcp_gemini_session_psid", None),
+        getattr(runtime_config, "mcp_gemini_oauth_token", None),
+        getattr(runtime_config, "mcp_external_server_url", None),
     )
     if _thumbnail_title_agent is None or _thumbnail_title_agent_signature != signature:
         apply_settings_to_process_env(runtime_config.as_runtime_settings())

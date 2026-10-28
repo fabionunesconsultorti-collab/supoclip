@@ -137,6 +137,56 @@ SETTING_METADATA = {
         "description": "Default creative guidance / prompt focus passed to the AI model for clip selection.",
         "input_type": "text",
     },
+    "MCP_GEMINI_ENABLED": {
+        "label": "Habilitar Gemini Pro via MCP",
+        "description": "Ativa o conector MCP da conta Google Gemini Pro.",
+        "input_type": "text",
+    },
+    "MCP_GEMINI_AUTH_MODE": {
+        "label": "Modo de autenticação MCP Gemini Pro",
+        "description": "Modo de conexão: 'session_cookie', 'oauth_token' ou 'external_mcp'.",
+        "input_type": "text",
+    },
+    "MCP_GEMINI_SESSION_PSID": {
+        "label": "Cookie __Secure-1PSID (Gemini Pro)",
+        "description": "Cookie de sessão da conta Google Gemini Pro (gemini.google.com).",
+        "input_type": "password",
+    },
+    "MCP_GEMINI_SESSION_PSIDTS": {
+        "label": "Cookie __Secure-1PSIDTS (Gemini Pro)",
+        "description": "Cookie complementar de sessão da conta Google Gemini Pro.",
+        "input_type": "password",
+    },
+    "MCP_GEMINI_OAUTH_TOKEN": {
+        "label": "Token OAuth / Bearer (Gemini Pro / CLI)",
+        "description": "Token OAuth2 (ya29...) ou chave Bearer da conta Google AI Pro.",
+        "input_type": "password",
+    },
+    "MCP_EXTERNAL_SERVER_URL": {
+        "label": "URL do Servidor MCP Externo",
+        "description": "Endpoint HTTP/SSE de um servidor MCP externo para Gemini Pro / Flow.",
+        "input_type": "text",
+    },
+    "MCP_EXTERNAL_AUTH_TOKEN": {
+        "label": "Token do Servidor MCP Externo",
+        "description": "Token Bearer opcional para autenticar no servidor MCP externo.",
+        "input_type": "password",
+    },
+    "MCP_FLOW_ENABLED": {
+        "label": "Habilitar Google Flow via MCP",
+        "description": "Ativa a geração de mídia (Imagen / Veo) via Google Labs Flow.",
+        "input_type": "text",
+    },
+    "MCP_FLOW_AUTH_TOKEN": {
+        "label": "Token de Sessão Google Flow (labs.google)",
+        "description": "Bearer token ou cookie de sessão do Google Labs Flow (labs.google/fx/tools/flow).",
+        "input_type": "password",
+    },
+    "MCP_FLOW_PROJECT_ID": {
+        "label": "Project ID do Google Flow",
+        "description": "ID opcional do projeto no Google Labs Flow.",
+        "input_type": "text",
+    },
 }
 
 
@@ -163,11 +213,18 @@ def _setting_status(
     else:
         source = "unset"
 
+    # Expose the effective value for non-secret settings so the UI can show
+    # what is actually in use (secrets are never echoed back).
+    value = None
+    if metadata["input_type"] != "password":
+        value = get_config()._get_runtime_setting(setting_key) or ""
+
     return {
         "key": setting_key,
         "label": metadata["label"],
         "description": metadata["description"],
         "input_type": metadata["input_type"],
+        "value": value,
         "source": source,
         "configured": has_env or has_admin_value,
         "has_admin_value": has_admin_value,
@@ -189,6 +246,7 @@ async def admin_health(
 @router.get("/runtime-settings")
 async def get_runtime_settings(request: Request, db: AsyncSession = Depends(get_db)):
     await require_admin_user(request, db, get_config())
+    await load_runtime_settings_cache(db)
     rows = await get_runtime_setting_rows(db)
     return {
         "settings": [
@@ -224,12 +282,20 @@ async def update_runtime_settings(
         config_error = _get_missing_llm_key_error(
             payload.updates["LLM"].strip(), get_config()
         )
-        if config_error and "API_KEY is not set" not in config_error:
+        if (
+            config_error
+            and "API_KEY is not set" not in config_error
+            and "no MCP credentials" not in config_error
+        ):
             raise HTTPException(status_code=400, detail=config_error)
 
+    clear_keys: list[str] = []
     for setting_key, raw_value in payload.updates.items():
         value = raw_value.strip()
         if not value:
+            # An explicitly emptied value (e.g. "auto" language or a cleared
+            # context) removes the admin override instead of being ignored.
+            clear_keys.append(setting_key)
             continue
         encrypted_value = encrypt_setting_value(value)
         await db.execute(
@@ -268,7 +334,8 @@ async def update_runtime_settings(
             },
         )
 
-    if payload.delete_keys:
+    keys_to_delete = sorted({*payload.delete_keys, *clear_keys})
+    if keys_to_delete:
         await db.execute(
             text(
                 """
@@ -276,7 +343,7 @@ async def update_runtime_settings(
                 WHERE setting_key = ANY(CAST(:setting_keys AS text[]))
                 """
             ),
-            {"setting_keys": payload.delete_keys},
+            {"setting_keys": keys_to_delete},
         )
 
     await db.commit()

@@ -27,8 +27,20 @@ By default it talks to the **official hosted SupoClip API** at
 | `supoclip_download_clip` | ✓ | Save a clip's MP4 to disk |
 | `supoclip_export_clip` | ✓ | Re-encode + save with a platform preset (tiktok/reels/shorts) |
 | `supoclip_cancel_task` / `supoclip_resume_task` / `supoclip_delete_task` | ✓ | Manage tasks |
+| `supoclip_generate_thumbnail_titles` | ✓ | Generate 3–5 viral thumbnail headline suggestions for a clip using the connected AI |
+| `supoclip_mcp_status` | ✓ | Check the status of the connected Gemini Pro & Google Flow MCP Bridge |
 
 Tools marked ✓ require an API key (or self-host credentials, see below).
+
+## Simplified Gemini Pro & Google Flow MCP Bridge (Self-Hosted / UI)
+
+SupoClip includes a built-in **Unified MCP Bridge** (`backend/src/mcp_bridge.py`) that connects your **Google Gemini Pro** and **Google Flow** account directly to the clipping pipeline (`LLM = mcp:gemini-pro`) without requiring separate per-token API billing or hunting for a separate Google Labs Flow key:
+
+1. Open **Agentes & API** (`/settings/api-keys`) or **Geração** (`/settings/generation`) in the SupoClip UI.
+2. In **Modo Simplificado**, paste only your two Google session cookies from `https://gemini.google.com`:
+   - `__Secure-1PSID`
+   - `__Secure-1PSIDTS`
+3. Click **Salvar e Usar como IA Principal**. Both **Gemini Pro** (transcript analysis, virality scoring, and viral titles) and **Google Flow** (9:16 AI thumbnail backgrounds in the Thumbnail Studio) are automatically activated using that unified session.
 
 ## Getting an API key
 

@@ -12,17 +12,18 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient, useSession } from "@/lib/auth-client";
 import { GITHUB_URL } from "@/lib/site";
+import { McpConnectionPanel } from "@/components/settings/mcp-connection-panel";
 
 const DOCS = [
   {
-    title: "Connect an agent",
-    description: "Set up the MCP server in Claude, Cursor and other MCP clients.",
+    title: "Conectar um Agente Externo (MCP)",
+    description: "Configure o servidor MCP do SupoClip no Claude, Cursor, Gemini CLI ou Antigravity.",
     href: `${GITHUB_URL}/blob/main/mcp/README.md`,
     icon: Bot,
   },
   {
-    title: "REST API reference",
-    description: "Endpoints, authentication and examples for direct API access.",
+    title: "Referência da API REST",
+    description: "Endpoints, autenticação e exemplos para acesso direto via código.",
     href: `${GITHUB_URL}/blob/main/docs/api-reference.md#authenticating-with-api-keys`,
     icon: Braces,
   },
@@ -41,7 +42,7 @@ function formatDate(value: string | null): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString();
+  return date.toLocaleString("pt-BR");
 }
 
 export default function ApiKeysPage() {
@@ -60,7 +61,7 @@ export default function ApiKeysPage() {
   useEffect(() => {
     const verificationError = new URLSearchParams(window.location.search).get("error");
     if (verificationError === "TOKEN_EXPIRED" || verificationError === "INVALID_TOKEN") {
-      setError("This verification link is invalid or expired. Request a new email below.");
+      setError("Este link de verificação é inválido ou expirou. Solicite um novo e-mail abaixo.");
     }
   }, []);
 
@@ -73,10 +74,10 @@ export default function ApiKeysPage() {
         email: session.user.email,
         callbackURL: "/settings/api-keys",
       });
-      if (result.error) throw new Error(result.error.message || "Failed to send verification email");
+      if (result.error) throw new Error(result.error.message || "Falha ao enviar e-mail de verificação");
       setVerificationSent(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send verification email");
+      setError(err instanceof Error ? err.message : "Falha ao enviar e-mail de verificação");
     } finally {
       setIsSendingVerification(false);
     }
@@ -86,11 +87,11 @@ export default function ApiKeysPage() {
     setIsFetching(true);
     try {
       const response = await fetch("/api/api-keys", { cache: "no-store" });
-      if (!response.ok) throw new Error("Failed to load API keys");
+      if (!response.ok) throw new Error("Falha ao carregar chaves de API");
       const data = await response.json();
       setKeys(data.api_keys || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load API keys");
+      setError(err instanceof Error ? err.message : "Falha ao carregar chaves de API");
     } finally {
       setIsFetching(false);
     }
@@ -112,17 +113,17 @@ export default function ApiKeysPage() {
       const response = await fetch("/api/api-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() || "API Key" }),
+        body: JSON.stringify({ name: name.trim() || "Chave de API" }),
       });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data?.detail || "Failed to create API key");
+        throw new Error(data?.detail || "Falha ao criar chave de API");
       }
       setNewKey(data.api_key?.key ?? null);
       setName("");
       await loadKeys();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create API key");
+      setError(err instanceof Error ? err.message : "Falha ao criar chave de API");
     } finally {
       setIsCreating(false);
     }
@@ -134,11 +135,11 @@ export default function ApiKeysPage() {
       const response = await fetch(`/api/api-keys/${id}`, { method: "DELETE" });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data?.detail || "Failed to revoke API key");
+        throw new Error(data?.detail || "Falha ao revogar chave de API");
       }
       await loadKeys();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to revoke API key");
+      setError(err instanceof Error ? err.message : "Falha ao revogar chave de API");
     }
   };
 
@@ -161,9 +162,9 @@ export default function ApiKeysPage() {
     return (
       <div className="min-h-screen bg-white">
         <div className="max-w-4xl mx-auto px-4 py-24 text-center">
-          <p className="text-gray-600 mb-4">Sign in to manage your API keys.</p>
+          <p className="text-gray-600 mb-4">Entre na sua conta para gerenciar conexões MCP e chaves de API.</p>
           <Link href="/sign-in">
-            <Button>Sign In</Button>
+            <Button>Entrar</Button>
           </Link>
         </div>
       </div>
@@ -171,151 +172,179 @@ export default function ApiKeysPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 md:py-10">
-        <div>
-          <div className="mb-8">
-            <h1 className="font-display text-3xl font-bold tracking-tight">Agents &amp; API</h1>
-            <p className="mt-2 text-muted-foreground">
-              Let Claude, Cursor and other AI agents clip videos for you through the{" "}
-              <span className="font-medium text-foreground">SupoClip MCP server</span>, or call the REST API
-              from your own code. Treat keys like passwords; they grant full access to your account.
-            </p>
-          </div>
+    <main className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-8 md:py-10 space-y-10">
+      <div>
+        <h1 className="font-display text-3xl font-bold tracking-tight">Agentes &amp; MCP</h1>
+        <p className="mt-2 text-muted-foreground">
+          Conecte sua conta <span className="font-medium text-foreground">Gemini Pro</span> e o{" "}
+          <span className="font-medium text-foreground">Google Flow</span> via MCP para alimentar o SupoClip, ou gere chaves para controlar o{" "}
+          <span className="font-medium text-foreground">Servidor MCP do SupoClip</span> a partir de agentes externos.
+        </p>
+      </div>
 
-          <div className="mb-8 grid gap-3 sm:grid-cols-2">
-            {DOCS.map((doc) => (
-              <a
-                key={doc.href}
-                href={doc.href}
-                target="_blank"
-                rel="noreferrer"
-                className="group flex items-start gap-3 rounded-xl border bg-background p-4 transition-colors hover:border-foreground/25"
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted"><doc.icon className="size-4" /></span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1 text-sm font-semibold">
-                    {doc.title}
-                    <ArrowUpRight className="size-3.5 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                  </span>
-                  <span className="mt-0.5 block text-xs text-muted-foreground">{doc.description}</span>
+      {/* Conector MCP Gemini Pro & Google Flow */}
+      <McpConnectionPanel />
+
+      {/* Seção de Chaves de API e Servidor MCP do SupoClip */}
+      <div className="pt-4 border-t">
+        <div className="mb-6">
+          <h2 className="font-display text-xl font-bold tracking-tight">
+            Chaves de API &amp; Servidor MCP do SupoClip
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Permita que o Claude, Cursor, Gemini CLI ou outros agentes criem cortes automaticamente através do servidor MCP do SupoClip ou da API REST.
+          </p>
+        </div>
+
+        <div className="mb-8 grid gap-3 sm:grid-cols-2">
+          {DOCS.map((doc) => (
+            <a
+              key={doc.href}
+              href={doc.href}
+              target="_blank"
+              rel="noreferrer"
+              className="group flex items-start gap-3 rounded-xl border bg-background p-4 transition-colors hover:border-foreground/25"
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                <doc.icon className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1 text-sm font-semibold">
+                  {doc.title}
+                  <ArrowUpRight className="size-3.5 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                 </span>
-              </a>
-            ))}
-          </div>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{doc.description}</span>
+              </span>
+            </a>
+          ))}
+        </div>
 
-          {error && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-          {!emailVerified && (
-            <Alert className="mb-6">
-              <AlertDescription>
-                <p className="font-medium">Verify your email to create API keys</p>
-                <p className="mt-1">Confirm that you own {session.user.email}. You can still view and revoke existing keys.</p>
-                {verificationSent && (
-                  <p role="status" className="mt-2">Verification email requested. Check your inbox; the link expires in 1 hour.</p>
-                )}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={handleSendVerification} disabled={isSendingVerification}>
-                    {isSendingVerification ? "Sending…" : verificationSent ? "Resend verification email" : "Send verification email"}
-                  </Button>
-                  <Button variant="ghost" onClick={() => void refetch()}>
-                    I have verified my email
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* One-time key reveal */}
-          {newKey && (
-            <Alert className="mb-6 border-green-200 bg-green-50">
-              <AlertDescription>
-                <p className="font-medium text-green-900 mb-2">
-                  Copy your new key now — it won&apos;t be shown again.
+        {!emailVerified && (
+          <Alert className="mb-6">
+            <AlertDescription>
+              <p className="font-medium">Verifique seu e-mail para criar chaves de API</p>
+              <p className="mt-1">
+                Confirme que você é o titular de {session.user.email}. Você ainda pode visualizar e revogar chaves existentes.
+              </p>
+              {verificationSent && (
+                <p role="status" className="mt-2">
+                  E-mail de verificação solicitado. Verifique sua caixa de entrada; o link expira em 1 hora.
                 </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 px-3 py-2 bg-white border rounded text-sm break-all">
-                    {newKey}
-                  </code>
-                  <Button size="sm" variant="outline" onClick={handleCopy}>
-                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button variant="outline" onClick={handleSendVerification} disabled={isSendingVerification}>
+                  {isSendingVerification
+                    ? "Enviando…"
+                    : verificationSent
+                    ? "Reenviar e-mail de verificação"
+                    : "Enviar e-mail de verificação"}
+                </Button>
+                <Button variant="ghost" onClick={() => void refetch()}>
+                  Já verifiquei meu e-mail
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
-          {/* Create form */}
-          <div className="mb-10 p-4 border rounded-lg">
-            <Label htmlFor="key-name" className="mb-2 block">
-              Create a new key
-            </Label>
-            <div className="flex gap-2">
+        {/* One-time key reveal */}
+        {newKey && (
+          <Alert className="mb-6 border-green-200 bg-green-50">
+            <AlertDescription>
+              <p className="font-medium text-green-900 mb-2">
+                Copie sua nova chave agora — ela não será exibida novamente.
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 px-3 py-2 bg-white border rounded text-sm break-all">
+                  {newKey}
+                </code>
+                <Button size="sm" variant="outline" onClick={handleCopy}>
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Create key */}
+        <div className="mb-8 rounded-2xl border bg-background p-5">
+          <h3 className="text-sm font-semibold mb-4">Criar nova chave de API</h3>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <Label htmlFor="key-name" className="sr-only">
+                Nome da chave
+              </Label>
               <Input
                 id="key-name"
-                placeholder="e.g. My laptop MCP"
+                placeholder="Nome (ex.: Gemini CLI, Claude Desktop, Script de Automação)"
                 value={name}
-                maxLength={120}
                 onChange={(e) => setName(e.target.value)}
                 disabled={isCreating || !emailVerified}
               />
-              <Button onClick={handleCreate} disabled={isCreating || !emailVerified}>
-                <Plus className="w-4 h-4" />
-                {isCreating ? "Creating…" : "Create"}
-              </Button>
             </div>
-          </div>
-
-          {/* Key list */}
-          <div>
-            <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
-              Your keys
-            </h2>
-            {isFetching ? (
-              <Skeleton className="h-20 w-full" />
-            ) : keys.length === 0 ? (
-              <p className="text-gray-500 text-sm">No API keys yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {keys.map((key) => (
-                  <div
-                    key={key.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-black truncate">{key.name}</span>
-                        {key.revoked && <Badge variant="secondary">Revoked</Badge>}
-                      </div>
-                      <p className="text-xs text-gray-500 font-mono mt-1">
-                        {key.key_prefix}…
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Created {formatDate(key.created_at)} · Last used{" "}
-                        {formatDate(key.last_used_at)}
-                      </p>
-                    </div>
-                    {!key.revoked && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => handleRevoke(key.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Revoke
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            <Button onClick={handleCreate} disabled={isCreating || !emailVerified}>
+              <Plus className="w-4 h-4 mr-1" />
+              {isCreating ? "Criando..." : "Criar Chave"}
+            </Button>
           </div>
         </div>
+
+        {/* Key list */}
+        <div className="rounded-2xl border bg-background">
+          <div className="border-b px-5 py-4">
+            <h3 className="text-sm font-semibold">Suas chaves de API</h3>
+          </div>
+          {isFetching ? (
+            <div className="p-6">
+              <Skeleton className="h-16 w-full" />
+            </div>
+          ) : keys.length === 0 ? (
+            <p className="p-6 text-sm text-muted-foreground">
+              Nenhuma chave de API ainda. Crie uma acima para começar.
+            </p>
+          ) : (
+            <div className="divide-y">
+              {keys.map((k) => (
+                <div
+                  key={k.id}
+                  className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">{k.name}</span>
+                      <code className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-700">
+                        {k.key_prefix}…
+                      </code>
+                      {k.revoked && <Badge variant="secondary">Revogada</Badge>}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Criada em {formatDate(k.created_at)} · Último uso: {formatDate(k.last_used_at)}
+                    </p>
+                  </div>
+                  {!k.revoked && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 self-start sm:self-center"
+                      onClick={() => handleRevoke(k.id)}
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Revogar
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </main>
   );
 }
