@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...auth_headers import get_authenticated_user_id
+from ...auth_headers import resolve_authenticated_user_id
 from ...config import get_config
 from ...database import get_db
 from ...mcp_bridge import MCPBridgeClient, extract_json_object
@@ -42,7 +42,7 @@ async def get_mcp_status(
     db: AsyncSession = Depends(get_db),
 ):
     """Return current MCP connection status for Gemini Pro and Google Flow."""
-    await get_authenticated_user_id(request, db, get_config())
+    await resolve_authenticated_user_id(request, db, get_config())
     await load_runtime_settings_cache(db)
     bridge = MCPBridgeClient(get_config())
     return bridge.get_status_summary()
@@ -55,7 +55,7 @@ async def test_mcp_connection(
     db: AsyncSession = Depends(get_db),
 ):
     """Test Gemini Pro and/or Google Flow MCP connectivity in real time."""
-    await get_authenticated_user_id(request, db, get_config())
+    await resolve_authenticated_user_id(request, db, get_config())
     await load_runtime_settings_cache(db)
     bridge = MCPBridgeClient(get_config(), overrides=payload.overrides)
 
@@ -119,7 +119,7 @@ async def generate_flow_image_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """Generate a 9:16 background image using Google Flow via MCP for Thumbnail Studio."""
-    await get_authenticated_user_id(request, db, get_config())
+    await resolve_authenticated_user_id(request, db, get_config())
     await load_runtime_settings_cache(db)
     bridge = MCPBridgeClient(get_config())
     try:

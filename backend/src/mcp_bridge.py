@@ -573,8 +573,8 @@ class MCPBridgeClient:
             except Exception as exc:
                 logger.warning("Gemini Imagen 3 fallback failed: %s", exc)
 
-        # 3. If Gemini Pro web session is active, ask Gemini Pro to generate a custom thematic SVG artwork
-        if self.session_psid:
+        # 3. If Gemini Pro MCP is active, ask Gemini to generate a custom thematic SVG artwork
+        if self.session_psid or self.oauth_token or self.config.google_api_key or self.external_server_url:
             try:
                 svg_prompt = (
                     "Generate ONLY a valid, self-contained <svg xmlns=\"http://www.w3.org/2000/svg\" "
@@ -583,10 +583,12 @@ class MCPBridgeClient:
                     "background with glowing gradients, abstract geometric shapes, and lighting inspired by: "
                     f"{prompt.strip()[:200]}"
                 )
-                raw_svg = await self._complete_via_gemini_web_session(svg_prompt)
+                raw_svg = await self.complete_chat(prompt=svg_prompt, model_id="gemini-pro")
                 svg_match = re.search(r"(<svg[\s\S]*?</svg>)", raw_svg, re.IGNORECASE)
                 if svg_match:
                     svg_code = svg_match.group(1)
+                    if "xmlns=" not in svg_code:
+                        svg_code = svg_code.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"', 1)
                     encoded = base64.b64encode(svg_code.encode("utf-8")).decode("ascii")
                     return {
                         "data_url": f"data:image/svg+xml;base64,{encoded}",
